@@ -607,8 +607,18 @@ async function generateImage(config: Config): Promise<void> {
         }
     }
 
-    // TODO: Handle splash, frontend path, overlay, etc.
-    const frontendPath = "./frontend"
+    // Determine frontend path - check for Vite/bundler output in frontend/dist
+    let frontendPath = "./frontend"
+    const viteDist = join(cwd, "frontend", "dist")
+    try {
+        const viteDistStat = await stat(viteDist)
+        if (viteDistStat.isDirectory()) {
+            frontendPath = "./frontend/dist"
+            info("Using Vite build output: frontend/dist")
+        }
+    } catch {
+        // frontend/dist doesn't exist, use frontend directly
+    }
     const splashEnabled = config.boot.splash.enabled ? "true" : "false"
     const initialLoadColor = config.display.initial_load_color
     const resolution = config.display.resolution
