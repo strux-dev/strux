@@ -1,0 +1,20 @@
+{
+    "explorer.fileNesting.enabled": true,
+    "explorer.fileNesting.patterns": {
+      "tsconfig.json": "tsconfig.*.json, env.d.ts",
+      "vite.config.*": "jsconfig*, vitest.config.*, cypress.config.*, playwright.config.*",
+      "package.json": "package-lock.json, pnpm*, .yarnrc*, yarn*, .eslint*, eslint*, .prettier*, prettier*, .editorconfig"
+    },
+    "editor.codeActionsOnSave": {
+        "source.fixAll": "explicit",
+    },
+    "editor.tabSize": 4,
+    "editor.detectIndentation": false,
+    "stylelint.validate": ["css", "scss", "vue"],
+    "scss.validate": false,
+    "css.validate": false,
+    "eslint.workingDirectories": [
+       { "mode": "location", "directory": "backend" }
+     ],
+     "commentAnchors.workspace.excludeFiles": "**/{node_modules,.git,.idea,target,out,build,vendor,.venv,.output,.nuxt,.tiles}/**/*"
+}

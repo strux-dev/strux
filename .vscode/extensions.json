@@ -1,0 +1,25 @@
+{
+    "recommendations": [
+      "Vue.volar",
+      "EditorConfig.EditorConfig",
+      "apollographql.vscode-apollo",
+      "akamud.vscode-theme-onedark",
+      "sukumo28.wav-preview",
+      "ycodetech.automatic-comment-blocks",
+      "mads-hartmann.bash-ide-vscode",
+      "aaron-bond.better-comments",
+      "oderwat.indent-rainbow",
+      "christian-kohler.npm-intellisense",
+      "mrmlnc.vscode-scss",
+      "sibiraj-s.vscode-scss-formatter",
+      "bradlc.vscode-tailwindcss",
+      "4ops.terraform",
+      "redhat.vscode-xml",
+      "christian-kohler.path-intellisense",
+      "stylelint.vscode-stylelint",
+      "exodiusstudios.comment-anchors"
+
+    ]
+  }
+  
+  

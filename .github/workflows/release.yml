@@ -1,0 +1,540 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version to release (e.g., 1.0.0)'
+        required: true
+        type: string
+
+env:
+  GO_VERSION: '1.24'
+  BUN_VERSION: '1.1.38'
+
+jobs:
+  # Generate runtime types first
+  generate-types:
+    name: Generate Types
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+
+      - name: Generate Runtime Types
+        run: |
+          go run ./cmd/gen-runtime-types -format=ts > src/types/strux-runtime.ts
+          cat src/types/strux-runtime.ts
+
+      - name: Upload generated types
+        uses: actions/upload-artifact@v4
+        with:
+          name: generated-types
+          path: src/types/strux-runtime.ts
+
+  # Build Go introspection binary for all platforms
+  build-go:
+    name: Build Go (${{ matrix.os }}-${{ matrix.arch }})
+    runs-on: ubuntu-latest
+    needs: generate-types
+    strategy:
+      matrix:
+        include:
+          - os: linux
+            arch: amd64
+            ext: ''
+          - os: linux
+            arch: arm64
+            ext: ''
+          - os: darwin
+            arch: amd64
+            ext: ''
+          - os: darwin
+            arch: arm64
+            ext: ''
+          - os: windows
+            arch: amd64
+            ext: '.exe'
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+
+      - name: Build strux-introspect
+        env:
+          GOOS: ${{ matrix.os }}
+          GOARCH: ${{ matrix.arch }}
+          CGO_ENABLED: 0
+        run: |
+          go build -ldflags="-s -w" -o strux-introspect-${{ matrix.os }}-${{ matrix.arch }}${{ matrix.ext }} ./cmd/strux/main.go
+
+      - name: Upload Go binary
+        uses: actions/upload-artifact@v4
+        with:
+          name: strux-introspect-${{ matrix.os }}-${{ matrix.arch }}
+          path: strux-introspect-${{ matrix.os }}-${{ matrix.arch }}${{ matrix.ext }}
+
+  # Build Bun executable for all platforms
+  build-bun:
+    name: Build Bun CLI (${{ matrix.target }})
+    runs-on: ${{ matrix.runner }}
+    needs: generate-types
+    strategy:
+      matrix:
+        include:
+          - target: linux-x64
+            runner: ubuntu-latest
+            os: linux
+            arch: amd64
+          - target: linux-arm64
+            runner: ubuntu-latest
+            os: linux
+            arch: arm64
+          - target: darwin-x64
+            runner: macos-latest
+            os: darwin
+            arch: amd64
+          - target: darwin-arm64
+            runner: macos-latest
+            os: darwin
+            arch: arm64
+          - target: windows-x64
+            runner: windows-latest
+            os: windows
+            arch: amd64
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: ${{ env.BUN_VERSION }}
+
+      - name: Download generated types
+        uses: actions/download-artifact@v4
+        with:
+          name: generated-types
+          path: src/types/
+
+      - name: Install dependencies
+        run: bun install
+
+      - name: Build executable
+        run: |
+          bun build src/index.ts --compile --target=bun-${{ matrix.target }} --outfile strux-${{ matrix.target }}
+
+      - name: Upload Bun binary
+        uses: actions/upload-artifact@v4
+        with:
+          name: strux-${{ matrix.target }}
+          path: strux-${{ matrix.target }}${{ matrix.os == 'windows' && '.exe' || '' }}
+
+  # Create .deb package for Linux
+  build-deb:
+    name: Build .deb Package
+    runs-on: ubuntu-latest
+    needs: [build-go, build-bun]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download Linux binaries
+        uses: actions/download-artifact@v4
+        with:
+          pattern: '*linux*'
+          path: binaries/
+          merge-multiple: true
+
+      - name: Get version
+        id: version
+        run: |
+          if [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
+            echo "version=${{ inputs.version }}" >> $GITHUB_OUTPUT
+          else
+            echo "version=${GITHUB_REF_NAME#v}" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Create .deb package structure
+        run: |
+          mkdir -p deb/DEBIAN
+          mkdir -p deb/usr/bin
+          mkdir -p deb/usr/share/strux
+
+          # Copy binaries
+          cp binaries/strux-linux-x64 deb/usr/bin/strux || cp binaries/strux-linux-amd64 deb/usr/bin/strux
+          cp binaries/strux-introspect-linux-amd64 deb/usr/share/strux/strux-introspect
+          chmod +x deb/usr/bin/strux
+          chmod +x deb/usr/share/strux/strux-introspect
+
+          # Create control file
+          cat > deb/DEBIAN/control << EOF
+          Package: strux
+          Version: ${{ steps.version.outputs.version }}
+          Section: devel
+          Priority: optional
+          Architecture: amd64
+          Maintainer: Strux Dev <dev@strux.dev>
+          Description: Strux OS CLI
+           A framework for building kiosk-style operating systems.
+          EOF
+
+          # Create postinst script
+          cat > deb/DEBIAN/postinst << 'EOF'
+          #!/bin/bash
+          ln -sf /usr/share/strux/strux-introspect /usr/bin/strux-introspect
+          EOF
+          chmod +x deb/DEBIAN/postinst
+
+      - name: Build .deb
+        run: |
+          dpkg-deb --build deb strux_${{ steps.version.outputs.version }}_amd64.deb
+
+      - name: Upload .deb
+        uses: actions/upload-artifact@v4
+        with:
+          name: strux-deb
+          path: strux_*.deb
+
+  # Create .rpm package for Linux
+  build-rpm:
+    name: Build .rpm Package
+    runs-on: ubuntu-latest
+    needs: [build-go, build-bun]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install rpm tools
+        run: sudo apt-get update && sudo apt-get install -y rpm
+
+      - name: Download Linux binaries
+        uses: actions/download-artifact@v4
+        with:
+          pattern: '*linux*'
+          path: binaries/
+          merge-multiple: true
+
+      - name: Get version
+        id: version
+        run: |
+          if [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
+            echo "version=${{ inputs.version }}" >> $GITHUB_OUTPUT
+          else
+            echo "version=${GITHUB_REF_NAME#v}" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Create RPM structure
+        run: |
+          mkdir -p rpmbuild/{BUILD,RPMS,SOURCES,SPECS,SRPMS}
+          mkdir -p rpmbuild/SOURCES/strux-${{ steps.version.outputs.version }}
+
+          cp binaries/strux-linux-x64 rpmbuild/SOURCES/strux-${{ steps.version.outputs.version }}/strux || \
+          cp binaries/strux-linux-amd64 rpmbuild/SOURCES/strux-${{ steps.version.outputs.version }}/strux
+          cp binaries/strux-introspect-linux-amd64 rpmbuild/SOURCES/strux-${{ steps.version.outputs.version }}/strux-introspect
+
+          cd rpmbuild/SOURCES && tar -czvf strux-${{ steps.version.outputs.version }}.tar.gz strux-${{ steps.version.outputs.version }}
+
+          cat > ../SPECS/strux.spec << EOF
+          Name: strux
+          Version: ${{ steps.version.outputs.version }}
+          Release: 1
+          Summary: Strux OS CLI
+          License: MIT
+          Source0: strux-%{version}.tar.gz
+
+          %description
+          A framework for building kiosk-style operating systems.
+
+          %prep
+          %setup -q
+
+          %install
+          mkdir -p %{buildroot}/usr/bin
+          mkdir -p %{buildroot}/usr/share/strux
+          install -m 755 strux %{buildroot}/usr/bin/strux
+          install -m 755 strux-introspect %{buildroot}/usr/share/strux/strux-introspect
+          ln -sf /usr/share/strux/strux-introspect %{buildroot}/usr/bin/strux-introspect
+
+          %files
+          /usr/bin/strux
+          /usr/bin/strux-introspect
+          /usr/share/strux/strux-introspect
+          EOF
+
+      - name: Build RPM
+        run: |
+          rpmbuild --define "_topdir $(pwd)/rpmbuild" -ba rpmbuild/SPECS/strux.spec
+
+      - name: Upload .rpm
+        uses: actions/upload-artifact@v4
+        with:
+          name: strux-rpm
+          path: rpmbuild/RPMS/**/*.rpm
+
+  # Create Windows NSIS installer
+  build-nsis:
+    name: Build Windows Installer
+    runs-on: windows-latest
+    needs: [build-go, build-bun]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download Windows binaries
+        uses: actions/download-artifact@v4
+        with:
+          pattern: '*windows*'
+          path: binaries/
+          merge-multiple: true
+
+      - name: Get version
+        id: version
+        shell: bash
+        run: |
+          if [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
+            echo "version=${{ inputs.version }}" >> $GITHUB_OUTPUT
+          else
+            echo "version=${GITHUB_REF_NAME#v}" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Create NSIS script
+        shell: bash
+        run: |
+          cat > installer.nsi << 'EOF'
+          !include "MUI2.nsh"
+
+          Name "Strux"
+          OutFile "strux-setup.exe"
+          InstallDir "$PROGRAMFILES\Strux"
+          RequestExecutionLevel admin
+
+          !insertmacro MUI_PAGE_WELCOME
+          !insertmacro MUI_PAGE_DIRECTORY
+          !insertmacro MUI_PAGE_INSTFILES
+          !insertmacro MUI_PAGE_FINISH
+
+          !insertmacro MUI_UNPAGE_CONFIRM
+          !insertmacro MUI_UNPAGE_INSTFILES
+
+          !insertmacro MUI_LANGUAGE "English"
+
+          Section "Install"
+            SetOutPath "$INSTDIR"
+            File "binaries\strux-windows-x64.exe"
+            File "binaries\strux-introspect-windows-amd64.exe"
+
+            Rename "$INSTDIR\strux-windows-x64.exe" "$INSTDIR\strux.exe"
+            Rename "$INSTDIR\strux-introspect-windows-amd64.exe" "$INSTDIR\strux-introspect.exe"
+
+            ; Add to PATH
+            EnVar::AddValue "PATH" "$INSTDIR"
+
+            ; Create uninstaller
+            WriteUninstaller "$INSTDIR\uninstall.exe"
+
+            ; Start menu
+            CreateDirectory "$SMPROGRAMS\Strux"
+            CreateShortcut "$SMPROGRAMS\Strux\Uninstall.lnk" "$INSTDIR\uninstall.exe"
+          SectionEnd
+
+          Section "Uninstall"
+            Delete "$INSTDIR\strux.exe"
+            Delete "$INSTDIR\strux-introspect.exe"
+            Delete "$INSTDIR\uninstall.exe"
+            RMDir "$INSTDIR"
+
+            Delete "$SMPROGRAMS\Strux\Uninstall.lnk"
+            RMDir "$SMPROGRAMS\Strux"
+
+            EnVar::DeleteValue "PATH" "$INSTDIR"
+          SectionEnd
+          EOF
+
+      - name: Install NSIS
+        run: choco install nsis -y
+
+      - name: Build installer
+        run: makensis installer.nsi
+
+      - name: Upload installer
+        uses: actions/upload-artifact@v4
+        with:
+          name: strux-windows-installer
+          path: strux-setup.exe
+
+  # Generate Homebrew formula
+  build-homebrew:
+    name: Generate Homebrew Formula
+    runs-on: ubuntu-latest
+    needs: [build-go, build-bun]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download Darwin binaries
+        uses: actions/download-artifact@v4
+        with:
+          pattern: '*darwin*'
+          path: binaries/
+          merge-multiple: true
+
+      - name: Get version
+        id: version
+        run: |
+          if [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
+            echo "version=${{ inputs.version }}" >> $GITHUB_OUTPUT
+          else
+            echo "version=${GITHUB_REF_NAME#v}" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Create tarball and get SHA
+        id: tarball
+        run: |
+          mkdir -p strux-${{ steps.version.outputs.version }}
+          cp binaries/strux-darwin-arm64 strux-${{ steps.version.outputs.version }}/strux-arm64 || true
+          cp binaries/strux-darwin-x64 strux-${{ steps.version.outputs.version }}/strux-x64 || true
+          cp binaries/strux-introspect-darwin-arm64 strux-${{ steps.version.outputs.version }}/strux-introspect-arm64 || true
+          cp binaries/strux-introspect-darwin-amd64 strux-${{ steps.version.outputs.version }}/strux-introspect-x64 || true
+
+          tar -czvf strux-${{ steps.version.outputs.version }}-darwin.tar.gz strux-${{ steps.version.outputs.version }}
+
+          SHA256=$(sha256sum strux-${{ steps.version.outputs.version }}-darwin.tar.gz | cut -d' ' -f1)
+          echo "sha256=$SHA256" >> $GITHUB_OUTPUT
+
+      - name: Generate Homebrew formula
+        run: |
+          cat > strux.rb << EOF
+          class Strux < Formula
+            desc "A framework for building kiosk-style operating systems"
+            homepage "https://github.com/strux-dev/strux"
+            version "${{ steps.version.outputs.version }}"
+            license "MIT"
+
+            on_macos do
+              if Hardware::CPU.arm?
+                url "https://github.com/strux-dev/strux/releases/download/v${{ steps.version.outputs.version }}/strux-${{ steps.version.outputs.version }}-darwin-arm64.tar.gz"
+                # sha256 will be updated after release
+              else
+                url "https://github.com/strux-dev/strux/releases/download/v${{ steps.version.outputs.version }}/strux-${{ steps.version.outputs.version }}-darwin-x64.tar.gz"
+                # sha256 will be updated after release
+              end
+            end
+
+            def install
+              if Hardware::CPU.arm?
+                bin.install "strux-arm64" => "strux"
+                bin.install "strux-introspect-arm64" => "strux-introspect"
+              else
+                bin.install "strux-x64" => "strux"
+                bin.install "strux-introspect-x64" => "strux-introspect"
+              end
+            end
+
+            test do
+              system "#{bin}/strux", "--version"
+            end
+          end
+          EOF
+
+      - name: Upload Homebrew formula
+        uses: actions/upload-artifact@v4
+        with:
+          name: homebrew-formula
+          path: strux.rb
+
+      - name: Upload Darwin tarball
+        uses: actions/upload-artifact@v4
+        with:
+          name: strux-darwin-tarball
+          path: strux-*.tar.gz
+
+  # Create GitHub Release
+  release:
+    name: Create Release
+    runs-on: ubuntu-latest
+    needs: [build-deb, build-rpm, build-nsis, build-homebrew]
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts/
+          merge-multiple: false
+
+      - name: Get version
+        id: version
+        run: |
+          if [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
+            echo "version=${{ inputs.version }}" >> $GITHUB_OUTPUT
+            echo "tag=v${{ inputs.version }}" >> $GITHUB_OUTPUT
+          else
+            echo "version=${GITHUB_REF_NAME#v}" >> $GITHUB_OUTPUT
+            echo "tag=${GITHUB_REF_NAME}" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Prepare release assets
+        run: |
+          mkdir -p release
+
+          # Copy and rename binaries
+          find artifacts -type f -name "strux-*" -exec cp {} release/ \;
+          find artifacts -type f -name "*.deb" -exec cp {} release/ \;
+          find artifacts -type f -name "*.rpm" -exec cp {} release/ \;
+          find artifacts -type f -name "*.exe" -exec cp {} release/ \;
+          find artifacts -type f -name "*.tar.gz" -exec cp {} release/ \;
+          find artifacts -type f -name "strux.rb" -exec cp {} release/ \;
+
+          ls -la release/
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: ${{ steps.version.outputs.tag }}
+          name: Strux ${{ steps.version.outputs.version }}
+          draft: false
+          prerelease: false
+          files: release/*
+          body: |
+            ## Strux ${{ steps.version.outputs.version }}
+
+            ### Installation
+
+            **macOS (Homebrew):**
+            ```bash
+            brew tap strux-dev/strux
+            brew install strux
+            ```
+
+            **Linux (Debian/Ubuntu):**
+            ```bash
+            wget https://github.com/strux-dev/strux/releases/download/${{ steps.version.outputs.tag }}/strux_${{ steps.version.outputs.version }}_amd64.deb
+            sudo dpkg -i strux_${{ steps.version.outputs.version }}_amd64.deb
+            ```
+
+            **Linux (Fedora/RHEL):**
+            ```bash
+            wget https://github.com/strux-dev/strux/releases/download/${{ steps.version.outputs.tag }}/strux-${{ steps.version.outputs.version }}-1.x86_64.rpm
+            sudo rpm -i strux-${{ steps.version.outputs.version }}-1.x86_64.rpm
+            ```
+
+            **Windows:**
+            Download and run `strux-setup.exe`
+
+            ### Binaries
+
+            | Platform | Architecture | File |
+            |----------|--------------|------|
+            | Linux | x64 | `strux-linux-x64` |
+            | Linux | arm64 | `strux-linux-arm64` |
+            | macOS | x64 | `strux-darwin-x64` |
+            | macOS | arm64 (Apple Silicon) | `strux-darwin-arm64` |
+            | Windows | x64 | `strux-windows-x64.exe` |

@@ -1,5 +1,8 @@
 # dependencies (bun install)
 node_modules
+/strux-introspect
+/strux
+/test
 
 # output
 out
