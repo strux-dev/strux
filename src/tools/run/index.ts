@@ -11,6 +11,12 @@ import { validateConfig, type Config } from "../../types/config"
 import { info, success, warning, error as logError, title } from "../../utils/colors"
 import { fileExists } from "../../utils/path"
 
+interface UsbRedirSession {
+    port: number
+    process: Bun.Subprocess
+    key: string
+}
+
 /**
  * Detect GPU vendor on Linux by checking /sys/class/drm/cardN/device/vendor
  * Returns "intel", "amd", "nvidia", or "unknown"
@@ -134,6 +140,49 @@ export interface RunOptions {
     // Future options can be added here
 }
 
+function normalizeHex(id: string): string {
+    return id.toLowerCase().replace(/^0x/, "").padStart(4, "0")
+}
+
+function hasUsbRedirHost(): boolean {
+    try {
+        const result = Bun.spawnSync(["which", "usbredir-host"], { stdout: "pipe", stderr: "pipe" })
+        return result.exitCode === 0
+    } catch {
+        return false
+    }
+}
+
+function startUsbRedirSessions(usbDevices: { vendor_id: string; product_id: string }[]): UsbRedirSession[] {
+    const sessions: UsbRedirSession[] = []
+
+    usbDevices.forEach((usb, index) => {
+        const port = 43000 + index
+        const key = `${normalizeHex(usb.vendor_id)}:${normalizeHex(usb.product_id)}`
+        const proc = Bun.spawn([
+            "usbredir-host",
+            "--device", key,
+            "--tcp", `localhost:${port}`,
+        ], {
+            stdout: "inherit",
+            stderr: "inherit",
+        })
+        sessions.push({ port, process: proc, key })
+    })
+
+    return sessions
+}
+
+function stopUsbRedirSessions(sessions: UsbRedirSession[]): void {
+    for (const session of sessions) {
+        try {
+            session.process.kill()
+        } catch {
+            // Ignore cleanup errors
+        }
+    }
+}
+
 /**
  * Run Strux OS in QEMU emulator
  */
@@ -233,12 +282,29 @@ export async function run(options: RunOptions = {}): Promise<void> {
 
     // Add USB passthrough devices
     const usbDevices = config.qemu?.usb ?? []
+    const usbRedirSessions: UsbRedirSession[] = []
     if (usbDevices.length > 0) {
         info(`USB passthrough: ${usbDevices.length} device(s)`)
-        for (const usb of usbDevices) {
-            args.push(
-                "-device", `usb-host,vendorid=0x${usb.vendor_id},productid=0x${usb.product_id}`
-            )
+        const isMac = process.platform === "darwin"
+        if (isMac) {
+            if (!hasUsbRedirHost()) {
+                throw new Error("usbredir-host not found. Install with `brew install usbredir`.")
+            }
+
+            usbRedirSessions.push(...startUsbRedirSessions(usbDevices))
+            usbRedirSessions.forEach((session, index) => {
+                args.push(
+                    "-chardev", `tcp,host=localhost,port=${session.port},id=redir${index},server,nowait`,
+                    "-device", `usb-redir,chardev=redir${index},id=usbredir${index}`
+                )
+            })
+            info("Using usbredir for USB passthrough on macOS")
+        } else {
+            for (const usb of usbDevices) {
+                args.push(
+                    "-device", `usb-host,vendorid=0x${usb.vendor_id},productid=0x${usb.product_id}`
+                )
+            }
         }
     }
 
@@ -266,16 +332,19 @@ export async function run(options: RunOptions = {}): Promise<void> {
     process.on("SIGINT", () => signalHandler("SIGINT"))
     process.on("SIGTERM", () => signalHandler("SIGTERM"))
 
-    // Wait for process to exit
-    const exitCode = await proc.exited
+    try {
+        // Wait for process to exit
+        const exitCode = await proc.exited
 
-    // Clean up signal handlers
-    process.removeAllListeners("SIGINT")
-    process.removeAllListeners("SIGTERM")
+        if (exitCode !== 0) {
+            throw new Error(`QEMU exited with code ${exitCode}`)
+        }
 
-    if (exitCode !== 0) {
-        throw new Error(`QEMU exited with code ${exitCode}`)
+        success("QEMU emulator stopped")
+    } finally {
+        // Clean up signal handlers
+        process.removeAllListeners("SIGINT")
+        process.removeAllListeners("SIGTERM")
+        stopUsbRedirSessions(usbRedirSessions)
     }
-
-    success("QEMU emulator stopped")
 }

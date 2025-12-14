@@ -33,6 +33,12 @@ brew tap strux-dev/strux
 brew install strux
 ```
 
+**macOS runtime prerequisites for `strux run` with USB passthrough:**
+- QEMU (install via Homebrew: `brew install qemu`)
+- usbredir tools (install via Homebrew: `brew install usbredir`)
+
+The CLI will fail fast with guidance if `usbredir-host` is missing.
+
 ### Linux (Debian/Ubuntu)
 
 ```bash
@@ -145,6 +151,22 @@ Build a complete OS image for the specified Board Support Package.
 
 Run the built OS image in QEMU for testing. Auto-detects GPU (Intel/AMD/NVIDIA) for GL acceleration.
 NVIDIA Devices and MacOS (with Apple Silicon) devices tend to have issues with GPU Passthrough, so we have employed software rendering for both.
+
+### `strux usb add`
+
+Detects connected USB devices on macOS (including Apple Silicon), Linux, and Windows, then lets you toggle which ones should be kept in `qemu.usb` in `strux.json`. Existing devices start selected so you can deselect to remove; new detections start unselected so you can add them.
+
+```bash
+strux usb add
+```
+
+### `strux usb list`
+
+Lists currently configured USB devices from `strux.json` and optionally removes selected entries.
+
+```bash
+strux usb list
+```
 
 ### `strux types`
 

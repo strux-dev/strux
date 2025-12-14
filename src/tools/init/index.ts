@@ -8,6 +8,7 @@ import { join, resolve } from "path"
 import { mkdir } from "fs/promises"
 import { success, info, warning, newSpinner } from "../../utils/colors"
 import { generateTypes } from "../types"
+import { STRUX_VERSION } from "../../version"
 
 export type TemplateType = "vanilla" | "react" | "vue"
 export type ArchType = "arm64" | "x86_64"
@@ -518,7 +519,7 @@ async function generateStruxConfig(projectDir: string, projectName: string, opti
     const frontendCmd = options.template !== "vanilla" ? "npm run build --prefix ./frontend" : ""
 
     const config = {
-        v: "0.0.1",
+        v: STRUX_VERSION,
         name: projectName,
         output: "./dist",
         display: {

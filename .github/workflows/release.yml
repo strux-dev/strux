@@ -115,6 +115,16 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Set CLI version
+        shell: bash
+        run: |
+          if [ "${GITHUB_EVENT_NAME}" = "workflow_dispatch" ]; then
+            VERSION="${{ inputs.version }}"
+          else
+            VERSION="${GITHUB_REF_NAME#v}"
+          fi
+          echo "STRUX_VERSION=$VERSION" >> "$GITHUB_ENV"
+
       - name: Setup Bun
         uses: oven-sh/setup-bun@v2
         with:
@@ -130,8 +140,9 @@ jobs:
         run: bun install
 
       - name: Build executable
+        shell: bash
         run: |
-          bun build src/index.ts --compile --target=bun-${{ matrix.target }} --outfile strux-${{ matrix.target }}
+          bun build src/index.ts --compile --target=bun-${{ matrix.target }} --outfile strux-${{ matrix.target }} --define:process.env.STRUX_VERSION="\"${STRUX_VERSION}\""
 
       - name: Upload Bun binary
         uses: actions/upload-artifact@v4

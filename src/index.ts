@@ -10,13 +10,15 @@ import { build } from "./tools/build"
 import { setVerbose, error, title, info } from "./utils/colors"
 import { init, detectArch, type TemplateType, type ArchType } from "./tools/init"
 import { bspAdd, bspList, bspRemove, bspInfo, bspInit } from "./tools/bsp"
+import { usb, usbAdd, usbList } from "./tools/usb"
+import { STRUX_VERSION } from "./version"
 
 const program = new Command()
 
 program
     .name("strux")
     .description("A Framework for building Kiosk-Style operating systems")
-    .version("0.0.1")
+    .version(STRUX_VERSION)
     .option("--verbose", "Enable verbose output")
     .hook("preAction", (thisCommand) => {
         const opts = thisCommand.opts()
@@ -77,6 +79,41 @@ program.command("run")
             await run()
         } catch (err) {
             error(`Run failed: ${err instanceof Error ? err.message : String(err)}`)
+            process.exit(1)
+        }
+    })
+
+const usbCmd = program.command("usb")
+    .description("USB device helpers")
+
+usbCmd.command("add")
+    .description("Auto-detect USB devices and add selected devices to strux.json")
+    .action(async () => {
+        try {
+            await usbAdd()
+        } catch (err) {
+            error(`USB detection failed: ${err instanceof Error ? err.message : String(err)}`)
+            process.exit(1)
+        }
+    })
+
+usbCmd.command("list")
+    .description("List configured USB devices and optionally remove them")
+    .action(async () => {
+        try {
+            await usbList()
+        } catch (err) {
+            error(`USB list failed: ${err instanceof Error ? err.message : String(err)}`)
+            process.exit(1)
+        }
+    })
+
+usbCmd
+    .action(async () => {
+        try {
+            await usb()
+        } catch (err) {
+            error(`USB detection failed: ${err instanceof Error ? err.message : String(err)}`)
             process.exit(1)
         }
     })
