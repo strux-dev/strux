@@ -153,6 +153,12 @@ chroot /tmp/rootfs systemctl mask apt-daily-upgrade.timer || true
 # Enable systemd-networkd for automatic network configuration
 chroot /tmp/rootfs systemctl enable systemd-networkd.service || true
 
+# Configure DNS resolution (since systemd-resolved is masked for faster boot)
+# Create resolv.conf symlink to systemd-networkd managed file
+mkdir -p /tmp/rootfs/run/systemd/resolve
+rm -f /tmp/rootfs/etc/resolv.conf
+ln -sf /run/systemd/resolve/resolv.conf /tmp/rootfs/etc/resolv.conf
+
 # Disable getty services to prevent login prompt flash during boot
 chroot /tmp/rootfs systemctl mask getty@tty1.service || true
 chroot /tmp/rootfs systemctl mask getty@tty2.service || true

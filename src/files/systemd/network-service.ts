@@ -14,5 +14,6 @@ DHCP=yes
 IPv6AcceptRA=yes
 
 [DHCPv4]
+UseDNS=yes
 UseDomains=yes
 `
