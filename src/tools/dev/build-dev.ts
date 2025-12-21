@@ -413,7 +413,7 @@ async function generateDevImage(config: Config): Promise<void> {
 
     const initScript = INIT_SCRIPT()
     const networkScript = NETWORK_SCRIPT
-    const buildScript = POST_ROOTFS_BUILD_SCRIPT(config, true) // devMode = true
+    const buildScript = await POST_ROOTFS_BUILD_SCRIPT(config, true) // devMode = true
     const struxScript = STRUX_SCRIPT(true) // isDev = true for dev build
 
     const fullScript = `
@@ -520,7 +520,7 @@ export async function buildDevImage(bspName: string, clean = false): Promise<voi
     const arch = bsp.arch ?? config.arch
 
     await mkdir(CACHE_DIR, { recursive: true })
-    
+
     // Step 1: Build Docker Image
     await buildDockerImage(config)
 

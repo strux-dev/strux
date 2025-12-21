@@ -12,10 +12,18 @@ import { STRUX_DEV_WATCHER_PATH } from "./systemd/strux-dev-watcher.path"
 import { STRUX_DEV_WATCHER_SERVICE } from "./systemd/strux-dev-watcher.service"
 import { STRUX_DEV_WATCHER_TIMER } from "./systemd/strux-dev-watcher.timer"
 import { STRUX_DEV_WATCHER_SCRIPT } from "./strux-dev-watcher-script"
-import { STRUX_MOUNT_SETUP_SERVICE } from "./systemd/strux-mount-setup.service"
+import STRUX_MOUNT_SETUP_SERVICE from "./systemd/strux-mount-setup.service"
+import STRUX_MOUNT_SETUP_SCRIPT from "./systemd/strux-mount-setup.sh" with { type: "file" }
 import { STRUX_SERVICE } from "./systemd/strux-service"
+import { readFile } from "fs/promises"
 
-export const POST_ROOTFS_BUILD_SCRIPT = function(config: Config, devMode = false) {
+export const POST_ROOTFS_BUILD_SCRIPT = async function(config: Config, devMode = false) {
+    const strux_mount_setup_service = await readFile(STRUX_MOUNT_SETUP_SERVICE, {
+        encoding: "utf-8"
+    })
+    const strux_mount_setup_script = await readFile(STRUX_MOUNT_SETUP_SCRIPT, {
+        encoding: "utf-8"
+    })
     return `#!/bin/bash
 
 set -e
@@ -205,8 +213,15 @@ EOF
 
 # Install dev mount setup service
 cat > /tmp/rootfs/etc/systemd/system/strux-mount-setup.service << 'EOF'
-${STRUX_MOUNT_SETUP_SERVICE}
+${strux_mount_setup_service}
 EOF
+
+# install dev mount setup script, called by strux-mount-setup.service
+cat > /tmp/rootfs/usr/bin/strux-mount-setup.sh << 'EOF'
+${strux_mount_setup_script}
+EOF
+
+chmod +x /tmp/rootfs/usr/bin/strux-mount-setup.sh
 
 # Install simple dev watcher script (non-systemd approach)
 cat > /tmp/rootfs/usr/bin/strux-dev-watcher.sh << 'EOF'
