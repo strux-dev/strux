@@ -1,0 +1,16 @@
+[Unit]
+Description=Strux Dev Mount Setup
+After=local-fs.target systemd-udevd.service
+Before=strux.service
+DefaultDependencies=no
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+StandardOutput=journal+console
+StandardError=journal+console
+# Try to mount if not already mounted, wait for virtio device to be ready
+ExecStart=/bin/bash /usr/bin/strux-mount-setup.sh
+
+[Install]
+WantedBy=multi-user.target
