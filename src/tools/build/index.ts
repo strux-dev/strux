@@ -310,7 +310,6 @@ export async function compileApp(arch: string): Promise<void> {
     const goPrivateEnv = needsStruxReplace && struxModulePath ? "GOPRIVATE=github.com/strux-dev/* " : ""
 
     const script = `
-        mkdir -p /project/dist
         ${setupScript}
         CGO_ENABLED=1 GOOS=linux GOARCH=${goArch} CC=${crossCompiler} ${goPrivateEnv}go build -o /project/dist/app .
     `

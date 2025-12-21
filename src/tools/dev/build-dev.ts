@@ -519,6 +519,8 @@ export async function buildDevImage(bspName: string, clean = false): Promise<voi
     // Determine architecture - BSP overrides config
     const arch = bsp.arch ?? config.arch
 
+    await mkdir(CACHE_DIR, { recursive: true })
+    
     // Step 1: Build Docker Image
     await buildDockerImage(config)
 
