@@ -1,0 +1,124 @@
+strux_version: ${version}
+bsp:
+  name: qemu
+  description: "QEMU virtual machine for testing"
+  display:
+    resolution: 1920x1080
+  
+  arch: arm64
+  hostname: ${projectName}
+
+  # scripts:
+  #   # --- Additional Scripts to Run during the build process ---
+  #   # | NOTE | The entire scripts folder will be copied to the build environment
+  #   - location: ./scripts/pre-build-script.sh
+  #     step: pre_build
+  #     # -- Options: 
+  #     # - before_build: Run before the build process and dockerfile build (very first step)
+  #     # - before_application: Run before the application build process
+  #     # - after_application: Run after the application build process
+  #     # - before_cage: Run before the cage build process
+  #     # - after_cage: Run after the cage build process
+  #     # - before_wpe: Run before the wpe build process
+  #     # - after_wpe: Run after the wpe build process
+  #     # - before_rootfs: Run before the rootfs creation
+  #     # - after_rootfs: Run after the rootfs creation
+  #     # - before_kernel: Run before the kernel build process
+  #     # - after_kernel: Run after the kernel build process and before the bootloader build process
+  #     # - before_bootloader: Run before the bootloader build process
+  #     # - after_bootloader: Run after the bootloader build process
+  #     # - before_bundle: Run before the bundle / rootfs ext4 creation
+  #     # - after_build: Run after the build process and after the bootloader build process (very last step)
+  #     # - flash_script: The script to use for the flash process (runs on the host machine, not in the docker container)
+
+
+
+
+  boot:
+    # The Bootloader configuration
+    bootloader:
+
+      # --- Whether to use a bootloader (Defaults to False) (Set to true if using a custom bootloader such as U-Boot or GRUB) ---
+      enabled: false
+      
+      # --- Bootloader Type (QEMU by default does not use a bootloader, can be grub or u-boot) ---
+      # type: u-boot 
+
+      # --- Bootloader Version to download ---
+      # version: 2025.10 
+
+      # --- Bootloader Source to download (Can be a valid Git Repository or URL) ---
+      # source: https://github.com/u-boot/u-boot/releases/download/v2025.10/u-boot-2025.10.tar.gz
+
+      # --- Bootloader Defconfig to use ---
+      # defconfig: qemu_arm64_defconfig
+
+
+      # --- Bootloader Fragments to apply ---
+      # fragments:
+      #   - "./configs/u-boot-networking.config"  # file path
+      #   - |  # multiline string = inline fragment
+      #      CONFIG_NET=y
+      #      CONFIG_CMD_PING=y
+
+      # --- Patches to apply to the bootloader ---
+      # patches:
+      #   - "./patches/u-boot-networking.patch"  # file path
+    
+    # --- The Kernel Configuration ---
+    kernel:
+
+      # ===== Anything in here will override the BSP's Kernel Configuration =====
+
+      # --- Whether to use a custom kernel (Defaults to False) (Set to true if using a custom kernel such as Linux or FreeBSD) ---
+      custom_kernel: false
+
+      # ---The Kernel Source to download (Can be a valid Git Repository or URL) ---
+      # source: https://github.com/torvalds/linux/releases/download/v6.1/linux-6.1.tar.gz
+
+      # --- The Kernel Version to use ---
+      # version: 6.1
+
+      # --- The Kernel Defconfig to use ---
+      # defconfig: defconfig
+
+      # --- Kernel Fragments to apply ---
+      # fragments:
+      #   - "./configs/kernel-networking.config"  # file path
+      #   - "./configs/kernel-usb.config"         # another file
+      #   - |  # inline fragment
+      #       CONFIG_USB_SUPPORT=y
+      #       CONFIG_USB_XHCI_HCD=y
+      #       CONFIG_NETWORK_FILESYSTEMS=y
+      
+
+      # --- Kernel Patches to apply ---
+      # patches:
+      #   - "./patches/kernel-networking.patch"  # file path
+      #   - "./patches/kernel-usb.patch"         # another file
+
+      # --- Device Tree Configuration ---
+      # device_tree:
+      #   # --- Primary DTS file (filename searches in kernel's arch/*/boot/dts/, path treats as external) ---
+      #   dts: qemu-arm64.dts  # or "./dts/qemu-arm64-2.dts" for external file
+
+      #   # --- DTS overlays to apply to base device tree ---
+      #   overlays:
+      #     - "./dts/overlays/add-device.dtso"  # file path
+
+      #   # --- Additional include paths for DTS compilation ---
+      #   include_paths:
+      #     - "./dts/includes"
+
+
+  # --- BSP Specific RootFS Configuration ---
+  rootfs:
+
+    # --- The BSP Specific RootFS Overlay Folder ---
+    overlay: ./overlay
+
+    # --- The RootFS Packages to install (can be a list of packages or locations to .deb files) ---
+    packages:
+      - curl
+      - wget
+

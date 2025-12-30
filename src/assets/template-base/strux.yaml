@@ -1,0 +1,57 @@
+strux_version: ${version}
+name: ${projectName}
+
+bsp: qemu
+
+hostname: ${projectName}
+
+boot:
+  # --- The splash screen configuration ---
+  splash:
+
+    # --- Whether to enable the bootsplash ---
+    enabled: true
+
+    # --- The logo to use for the bootsplash ---
+    logo: ./assets/logo.png
+
+    # --- The color of the web browser background to ensure a smooth transition from the bootsplash to your app ---
+    color: 000000
+  
+
+
+# --- Global RootFS Configuration ---
+rootfs:
+  # --- The RootFS Overlay to use ---
+  overlay: ./overlay
+
+  # --- The RootFS Packages to install (can be a list of packages or locations to .deb files) ---
+  packages:
+    - curl
+    - wget
+
+# --- QEMU Specific Configuration ---
+qemu:
+
+  # Whether o rnot to use QEMU for Local Testing
+  enabled: true
+
+  # --- The QEMU Network to use ---
+  network: true
+
+  # --- The QEMU USB Devices to use ---
+  # usb:
+  #   - vendor_id: 1234
+  #     product_id: 5678
+
+  # --- The QEMU Flags to use ---
+  flags:
+    - -m 2G
+
+
+build:
+  # --- Dockerfile Build Environment Packages to Install (Only supports repository packages at the moment)---
+  host_packages:
+    - curl
+    - wget
+   
