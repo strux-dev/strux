@@ -94,7 +94,8 @@ program.command("build")
             Logger.title("Building Strux OS Image for BSP: " + bspName)
             Settings.bspName = bspName
             Settings.clean = options.clean ?? false
-            await build(options.dev ?? false)
+            Settings.isDevMode = options.dev ?? false
+            await build()
         } catch (err) {
             Logger.error(`Build failed: ${err instanceof Error ? err.message : String(err)}`)
             process.exit(1)

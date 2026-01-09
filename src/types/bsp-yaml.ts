@@ -15,6 +15,15 @@ import { fileExists } from "../utils/path"
 // Display configuration schema
 const DisplaySchema = z.object({
     resolution: z.string(),
+}).transform((data) => {
+    const parts = data.resolution.split("x")
+    const width = parseInt(parts[0] ?? "0", 10)
+    const height = parseInt(parts[1] ?? "0", 10)
+    return {
+        ...data,
+        width,
+        height,
+    }
 })
 
 // Script step type schema
@@ -183,7 +192,7 @@ export class BSPYamlValidator {
             }
 
             // Store BSP config in Settings
-            Settings.bsp = validated
+            Settings.bsp = validated.bsp!
 
             return validated
         } catch (error) {

@@ -351,6 +351,7 @@ IMAGE_SIZE=$((ROOTFS_SIZE + ROOTFS_SIZE / 5 + 50))  # Add 20% + 50MB buffer
 echo "Rootfs is ${ROOTFS_SIZE}MB, creating ${IMAGE_SIZE}MB ext4 image..."
 
 # Create a tarball of the rootfs like we did for the base rootfs
+progress "Creating post-processed rootfs tarball..."
 mkdir -p /project/dist/cache 
 cd /tmp/rootfs
 tar -czf /project/dist/cache/rootfs-post.tar.gz .

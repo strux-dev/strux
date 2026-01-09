@@ -41,8 +41,8 @@ qemu:
 
   # --- The QEMU USB Devices to use ---
   # usb:
-  #   - vendor_id: 1234
-  #     product_id: 5678
+  #   - vendor_id: "1234"
+  #     product_id: "5678"
 
   # --- The QEMU Flags to use ---
   flags:

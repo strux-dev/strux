@@ -32,8 +32,8 @@ const RootFSSchema = z.object({
 
 // QEMU USB device schema
 const QemuUsbDeviceSchema = z.object({
-    vendor_id: z.union([z.string(), z.number()]),
-    product_id: z.union([z.string(), z.number()]),
+    vendor_id: z.string(),
+    product_id: z.string(),
 })
 
 // QEMU configuration schema

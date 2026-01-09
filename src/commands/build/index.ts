@@ -87,8 +87,9 @@ import { mkdir, rm } from "node:fs/promises"
 import { MainYAMLValidator } from "../../types/main-yaml"
 import { BSPYamlValidator } from "../../types/bsp-yaml"
 
-export async function build(isDevMode = false) {
+export async function build() {
 
+    const isDevMode = Settings.isDevMode
 
     // If the clean flag is set, delete the dist/cache folder
     if (Settings.clean) await rm(join(Settings.projectPath, "dist", "cache"), { recursive: true, force: true })
@@ -120,7 +121,7 @@ export async function build(isDevMode = false) {
     // Build strux client
     await buildStruxClient(isDevMode)
 
-    // TODO: Build the kernel
+    // TODO: Build the kernel if applicable
 
 
     // Build the root filesystem
@@ -364,7 +365,7 @@ async function buildStruxClient(addDevMode = false) {
 
     // Copy the binary over
     const clientBinary = Bun.file(clientDestPath)
-    await Bun.write(join(Settings.projectPath, "dist", "dist", "cache", "client"), clientBinary)
+    await Bun.write(join(Settings.projectPath, "dist", "cache", "client"), clientBinary)
 
     Logger.success("Strux Client built successfully")
 }

@@ -28,9 +28,14 @@ export class SettingsConfig {
     projectVersion: string
 
     main: StruxYaml | null = null
-    bsp: BSPYaml | null = null
+    bsp: BSPYaml["bsp"] | null = null
 
     bspName: string | null = null
+
+    isDevMode = false
+
+    // To show debug information from the QEMU system when it is running
+    qemuSystemDebug = false
 
 
     constructor() {
