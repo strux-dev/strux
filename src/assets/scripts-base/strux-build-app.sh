@@ -1,7 +1,9 @@
 #!/bin/bash
 
-set -e
+set -eo pipefail
 
+# Trap errors and print the failing command/line
+trap 'echo "Error: Command failed at line $LINENO with exit code $?: $BASH_COMMAND" >&2' ERR
 # Define A Function to Print Progress Messages that will be used by the Strux CLI
 progress() {
     echo "STRUX_PROGRESS: $1"
@@ -26,12 +28,19 @@ progress "Reading configuration from YAML files..."
 # Project directory (mounted at /project in Docker container)
 PROJECT_DIR="/project"
 
-# Get the active BSP name from strux.yaml
-BSP_NAME=$(yq eval '.bsp' "$PROJECT_DIR/strux.yaml" 2>/dev/null || echo "")
-
-if [ -z "$BSP_NAME" ]; then
-    echo "Error: Could not read BSP name from $PROJECT_DIR/strux.yaml"
-    exit 1
+# Get the active BSP name - check environment variable first, then fall back to strux.yaml
+if [ -n "$PRESELECTED_BSP" ]; then
+    BSP_NAME="$PRESELECTED_BSP"
+    progress "Using BSP from environment variable: $BSP_NAME"
+else
+    BSP_NAME=$(yq '.bsp' "$PROJECT_DIR/strux.yaml" 2>/dev/null || echo "")
+    
+    if [ -z "$BSP_NAME" ]; then
+        echo "Error: Could not read BSP name from $PROJECT_DIR/strux.yaml and PRESELECTED_BSP is not set"
+        exit 1
+    fi
+    
+    progress "Using BSP from strux.yaml: $BSP_NAME"
 fi
 
 # Construct BSP folder path
@@ -44,7 +53,7 @@ if [ ! -f "$BSP_CONFIG" ]; then
 fi
 
 # Get architecture from BSP config
-ARCH=$(yq eval '.bsp.arch' "$BSP_CONFIG" 2>/dev/null || echo "")
+ARCH=$(yq '.bsp.arch' "$BSP_CONFIG" 2>/dev/null | xargs || echo "")
 
 if [ -z "$ARCH" ]; then
     echo "Error: Could not read architecture from $BSP_CONFIG"

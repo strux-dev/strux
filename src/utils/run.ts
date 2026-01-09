@@ -49,7 +49,13 @@ export class RunnerClass {
 
     public async runCommand(command: string, options: RunnerOptions) {
         const spinner = new Spinner(options.message)
-        spinner.start()
+        // If verbose mode is enabled, don't use spinner (it interferes with output)
+        if (!Settings.verbose) {
+            spinner.start()
+        } else {
+            // In verbose mode, just log the message
+            Logger.log(options.message)
+        }
 
         const args = command.split(" ")
         let stdout = ""
@@ -69,8 +75,9 @@ export class RunnerClass {
                 const text = decoder.decode(chunk, { stream: true })
                 stdout += text
 
-                // Output stdout if verbose is enabled
+                // In verbose mode, output everything immediately
                 if (Settings.verbose) {
+                    // Write directly to stdout - this should output all process output
                     process.stdout.write(text)
                 }
 
@@ -82,7 +89,12 @@ export class RunnerClass {
                     if (idx >= 0) {
                         const msg = line.substring(idx + marker.length).trim()
                         if (msg) {
-                            spinner.updateMessage(msg)
+                            if (Settings.verbose) {
+                                // In verbose mode, progress markers are already in the output above
+                                // No need to log separately
+                            } else {
+                                spinner.updateMessage(msg)
+                            }
                         }
                     }
                 }
@@ -98,6 +110,7 @@ export class RunnerClass {
 
                 // Output stderr if verbose is enabled
                 if (Settings.verbose) {
+                    // Write directly to stderr - this should output all process errors
                     process.stderr.write(text)
                 }
             }
@@ -109,13 +122,30 @@ export class RunnerClass {
 
         if (exitCode === 0) {
             const successMessage = options.messageOnSuccess ?? options.message
-            spinner.stopWithSuccess(successMessage)
+            if (Settings.verbose) {
+                Logger.success(successMessage)
+            } else {
+                spinner.stopWithSuccess(successMessage)
+            }
         } else {
             const errorMessage = options.messageOnError ?? `Command failed with exit code ${exitCode}`
-            spinner.stop()
+            if (!Settings.verbose) {
+                spinner.stop()
+            }
             Logger.error(errorMessage)
-            if (stderr) {
-                Logger.error(stderr)
+            // Always show stderr if available
+            if (stderr?.trim()) {
+                Logger.raw(stderr)
+            }
+            // Also show stdout if it might contain error information (but filter out progress messages)
+            if (stdout?.trim()) {
+                const filteredStdout = stdout
+                    .split("\n")
+                    .filter(line => !line.includes("STRUX_PROGRESS:"))
+                    .join("\n")
+                if (filteredStdout.trim()) {
+                    Logger.raw(filteredStdout)
+                }
             }
             if (options.exitOnError) {
                 process.exit(exitCode)
@@ -131,6 +161,24 @@ export class RunnerClass {
 
     // Prepares the Docker Image and Folder
     public async prepareDockerImage() {
+        // Check if Docker image already exists (silently, without spinner)
+        try {
+            const checkProc = Bun.spawn(["docker", "images", "-q", "strux-builder"], {
+                stdout: "pipe",
+                stderr: "pipe",
+            })
+            const checkOutput = await new Response(checkProc.stdout).text()
+            await checkProc.exited
+
+            if (checkOutput.trim()) {
+                // Image exists, skip building
+                this.dockerImageBuilt = true
+                return
+            }
+        } catch {
+            // If check fails, proceed to build
+        }
+
         const spinner = new Spinner("Creating dist folder...")
         spinner.start()
 
@@ -156,41 +204,88 @@ export class RunnerClass {
             cwd: Settings.projectPath
         })
 
-
+        // Mark as built after successful build
+        this.dockerImageBuilt = true
     }
 
     public async runScriptInDocker(script: string, options: Omit<RunnerOptions, "cwd">) {
         if (!this.dockerImageBuilt) await this.prepareDockerImage()
 
         const spinner = new Spinner(options.message)
-        spinner.start()
+        // If verbose mode is enabled, don't use spinner (it interferes with output)
+        if (!Settings.verbose) {
+            spinner.start()
+        } else {
+            // In verbose mode, just log the message
+            Logger.log(options.message)
+        }
 
         // Build the script with chown at the end to fix permissions
         const userInfo = this.getHostUserInfo()
-        let finalScript = script
+        // Trim trailing whitespace/newlines from script before appending chown command
+        let finalScript = script.trimEnd()
 
         // Append chown command to fix permissions after script execution
         // Docker runs as root, so it can chown the mounted volume
         // Note: chown works with numeric UID/GID even if the user doesn't exist in the container
         // The host system will resolve these IDs to the actual user/group names
         if (userInfo) {
-            finalScript = `${script} && chown -R ${userInfo.uid}:${userInfo.gid} /project`
+            finalScript = `${finalScript} && chown -R ${userInfo.uid}:${userInfo.gid} /project`
         }
 
-        // Build environment variable flags for Docker
-        const envFlags: string[] = []
+        // Build Docker command arguments array directly
+        const args: string[] = [
+            "docker",
+            "run",
+            "--rm",
+            "-i",  // Interactive mode for unbuffered output (needed for verbose mode)
+            "--privileged"  // Required for debootstrap, mount, and chroot operations
+        ]
+
+        // Add environment variable flags
         if (options.env) {
             for (const [key, value] of Object.entries(options.env)) {
-                envFlags.push("-e", `${key}=${value}`)
+                args.push("-e", `${key}=${value}`)
             }
         }
 
-        const command = `docker run --rm ${envFlags.join(" ")} -v ${Settings.projectPath}:/project strux-builder /bin/sh -c`
+        // Add volume mount
+        args.push("-v", `${Settings.projectPath}:/project`)
 
-        const args = [...command.split(" "), finalScript]
+        // Add image and command (use bash since scripts use bash features)
+        args.push("strux-builder", "/bin/bash", "-c", finalScript)
         let stdout = ""
         let stderr = ""
 
+        // In verbose mode, use inherit stdio so output goes directly to terminal
+        // This avoids buffering issues and matches the old working implementation
+        if (Settings.verbose) {
+            const proc = Bun.spawn(args, {
+                stdout: "inherit",
+                stderr: "inherit",
+            })
+
+            const exitCode = await proc.exited
+
+            if (exitCode === 0) {
+                const successMessage = options.messageOnSuccess ?? options.message
+                Logger.success(successMessage)
+            } else {
+                const errorMessage = options.messageOnError ?? `Command failed with exit code ${exitCode}`
+                Logger.error(errorMessage)
+                if (options.exitOnError) {
+                    process.exit(exitCode)
+                }
+            }
+
+            return {
+                exitCode,
+                stdout: "", // Not captured in verbose mode
+                stderr: ""  // Not captured in verbose mode
+            }
+        }
+
+        // Non-verbose mode: capture output for spinner and error display
         const proc = Bun.spawn(args, {
             stdout: "pipe",
             stderr: "pipe",
@@ -202,11 +297,6 @@ export class RunnerClass {
             for await (const chunk of proc.stdout) {
                 const text = decoder.decode(chunk, { stream: true })
                 stdout += text
-
-                // Output stdout if verbose is enabled
-                if (Settings.verbose) {
-                    process.stdout.write(text)
-                }
 
                 // Parse for progress markers line by line
                 const lines = text.split("\n")
@@ -229,11 +319,6 @@ export class RunnerClass {
             for await (const chunk of proc.stderr) {
                 const text = decoder.decode(chunk, { stream: true })
                 stderr += text
-
-                // Output stderr if verbose is enabled
-                if (Settings.verbose) {
-                    process.stderr.write(text)
-                }
             }
         })()
 
@@ -248,8 +333,19 @@ export class RunnerClass {
             const errorMessage = options.messageOnError ?? `Command failed with exit code ${exitCode}`
             spinner.stop()
             Logger.error(errorMessage)
-            if (stderr) {
-                Logger.error(stderr)
+            // Always show stderr if available
+            if (stderr?.trim()) {
+                Logger.raw(stderr)
+            }
+            // Also show stdout if it might contain error information (but filter out progress messages)
+            if (stdout?.trim()) {
+                const filteredStdout = stdout
+                    .split("\n")
+                    .filter(line => !line.includes("STRUX_PROGRESS:"))
+                    .join("\n")
+                if (filteredStdout.trim()) {
+                    Logger.raw(filteredStdout)
+                }
             }
             if (options.exitOnError) {
                 process.exit(exitCode)

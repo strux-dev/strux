@@ -1,6 +1,9 @@
 #!/bin/bash
 
-set -e
+set -eo pipefail
+
+# Trap errors and print the failing command/line
+trap 'echo "Error: Command failed at line $LINENO with exit code $?: $BASH_COMMAND" >&2' ERR
 
 # Define A Function to Print Progress Messages that will be used by the Strux CLI
 progress() {

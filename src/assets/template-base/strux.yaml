@@ -12,11 +12,11 @@ boot:
     # --- Whether to enable the bootsplash ---
     enabled: true
 
-    # --- The logo to use for the bootsplash ---
+    # --- The logo to use for the bootsplash (must be a png) ---
     logo: ./assets/logo.png
 
     # --- The color of the web browser background to ensure a smooth transition from the bootsplash to your app ---
-    color: 000000
+    color: "000000"
   
 
 

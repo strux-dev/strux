@@ -1,7 +1,9 @@
 #!/bin/bash
 
-set -e
+set -eo pipefail
 
+# Trap errors and print the failing command/line
+trap 'echo "Error: Command failed at line $LINENO with exit code $?: $BASH_COMMAND" >&2' ERR
 # Define A Function to Print Progress Messages that will be used by the Strux CLI
 progress() {
     echo "STRUX_PROGRESS: $1"
@@ -11,6 +13,103 @@ progress() {
 PROJECT_DIR="/project"
 CAGE_SOURCE_DIR="$PROJECT_DIR/dist/cage"
 CAGE_BINARY="$PROJECT_DIR/dist/cache/cage"
+
+# ============================================================================
+# CONFIGURATION READING FROM YAML FILES
+# ============================================================================
+# Read the selected BSP from strux.yaml and get its architecture from bsp.yaml
+# ============================================================================
+
+progress "Reading configuration from YAML files..."
+
+# Get the active BSP name - check environment variable first, then fall back to strux.yaml
+if [ -n "$PRESELECTED_BSP" ]; then
+    BSP_NAME="$PRESELECTED_BSP"
+    progress "Using BSP from environment variable: $BSP_NAME"
+else
+    BSP_NAME=$(yq '.bsp' "$PROJECT_DIR/strux.yaml" 2>/dev/null || echo "")
+    
+    if [ -z "$BSP_NAME" ]; then
+        echo "Error: Could not read BSP name from $PROJECT_DIR/strux.yaml and PRESELECTED_BSP is not set"
+        exit 1
+    fi
+    
+    progress "Using BSP from strux.yaml: $BSP_NAME"
+fi
+
+# Construct BSP folder path
+BSP_FOLDER="$PROJECT_DIR/bsp/$BSP_NAME"
+BSP_CONFIG="$BSP_FOLDER/bsp.yaml"
+
+if [ ! -f "$BSP_CONFIG" ]; then
+    echo "Error: BSP configuration file not found: $BSP_CONFIG"
+    exit 1
+fi
+
+# Get architecture from BSP config (trim whitespace/newlines)
+ARCH=$(yq '.bsp.arch' "$BSP_CONFIG" 2>/dev/null | xargs || echo "")
+
+if [ -z "$ARCH" ]; then
+    echo "Error: Could not read architecture from $BSP_CONFIG"
+    exit 1
+fi
+
+# ============================================================================
+# ARCHITECTURE MAPPING FOR MESON CROSS-COMPILATION
+# ============================================================================
+# Map Strux architecture to cross-compiler toolchain
+# ============================================================================
+
+# Map architecture to cross-compiler
+if [ "$ARCH" = "amd64" ] || [ "$ARCH" = "x86_64" ]; then
+    TARGET_ARCH="x86_64"
+    MESON_CPU_FAMILY="x86_64"
+    ARCH_LABEL="x86_64"
+    CROSS_CC="x86_64-linux-gnu-gcc"
+    CROSS_CXX="x86_64-linux-gnu-g++"
+    CROSS_STRIP="x86_64-linux-gnu-strip"
+    CROSS_PKG_CONFIG="x86_64-linux-gnu-pkg-config"
+elif [ "$ARCH" = "arm64" ] || [ "$ARCH" = "aarch64" ]; then
+    TARGET_ARCH="aarch64"
+    MESON_CPU_FAMILY="aarch64"
+    ARCH_LABEL="ARM64"
+    CROSS_CC="aarch64-linux-gnu-gcc"
+    CROSS_CXX="aarch64-linux-gnu-g++"
+    CROSS_STRIP="aarch64-linux-gnu-strip"
+    CROSS_PKG_CONFIG="aarch64-linux-gnu-pkg-config"
+else
+    echo "Error: Unsupported architecture: $ARCH"
+    exit 1
+fi
+
+# Check if we're building for native or cross architecture
+HOST_ARCH=$(dpkg --print-architecture 2>/dev/null || echo "unknown")
+
+# Map host architecture for comparison
+case "$HOST_ARCH" in
+    amd64)
+        HOST_ARCH_NORMALIZED="x86_64"
+        ;;
+    arm64)
+        HOST_ARCH_NORMALIZED="arm64"
+        ;;
+    *)
+        HOST_ARCH_NORMALIZED="$HOST_ARCH"
+        ;;
+esac
+
+# Normalize target arch for comparison
+if [ "$ARCH" = "amd64" ] || [ "$ARCH" = "x86_64" ]; then
+    TARGET_ARCH_NORMALIZED="x86_64"
+else
+    TARGET_ARCH_NORMALIZED="arm64"
+fi
+
+# Determine if cross-compilation is needed
+NEED_CROSS_COMPILE=false
+if [ "$HOST_ARCH_NORMALIZED" != "$TARGET_ARCH_NORMALIZED" ]; then
+    NEED_CROSS_COMPILE=true
+fi
 
 # ============================================================================
 # CHECK IF CAGE SOURCE EXISTS
@@ -38,18 +137,64 @@ fi
 # ============================================================================
 # BUILD CAGE COMPOSITOR
 # ============================================================================
-# Configure and compile Cage using meson
+# Configure and compile Cage using meson with cross-compilation if needed
 # ============================================================================
 
 cd "$CAGE_SOURCE_DIR"
 
-progress "Configuring Cage with meson..."
+# Create meson cross-file if cross-compilation is needed
+MESON_CROSS_FILE=""
+if [ "$NEED_CROSS_COMPILE" = true ]; then
+    progress "Preparing meson cross-compilation for $ARCH_LABEL..."
+    
+    # Create a temporary cross-file
+    MESON_CROSS_FILE="/tmp/meson-cross-${TARGET_ARCH}.ini"
+    
+    # Determine PKG_CONFIG_PATH for cross-architecture libraries
+    # Multiarch libraries are typically in /usr/lib/<triplet>
+    if [ "$ARCH" = "amd64" ] || [ "$ARCH" = "x86_64" ]; then
+        PKG_CONFIG_PATH="/usr/lib/x86_64-linux-gnu/pkgconfig"
+    else
+        PKG_CONFIG_PATH="/usr/lib/aarch64-linux-gnu/pkgconfig"
+    fi
+    
+    cat > "$MESON_CROSS_FILE" <<EOF
+[binaries]
+c = '${CROSS_CC}'
+cpp = '${CROSS_CXX}'
+strip = '${CROSS_STRIP}'
+pkgconfig = 'pkg-config'
 
-# Configure with meson
-meson setup build --buildtype=release || {
-    echo "Error: Failed to configure Cage with meson"
-    exit 1
-}
+[host_machine]
+system = 'linux'
+cpu_family = '${MESON_CPU_FAMILY}'
+cpu = '${TARGET_ARCH}'
+endian = 'little'
+
+[properties]
+needs_exe_wrapper = true
+pkg_config_libdir = '${PKG_CONFIG_PATH}'
+EOF
+    
+    progress "Cross-compilation file created: $MESON_CROSS_FILE"
+else
+    progress "Building for native architecture ($ARCH_LABEL)..."
+fi
+
+progress "Configuring Cage with meson for $ARCH_LABEL..."
+
+# Configure with meson (with cross-file if needed)
+if [ "$NEED_CROSS_COMPILE" = true ]; then
+    meson setup build --buildtype=release --cross-file="$MESON_CROSS_FILE" || {
+        echo "Error: Failed to configure Cage with meson cross-compilation"
+        exit 1
+    }
+else
+    meson setup build --buildtype=release || {
+        echo "Error: Failed to configure Cage with meson"
+        exit 1
+    }
+fi
 
 progress "Compiling Cage..."
 

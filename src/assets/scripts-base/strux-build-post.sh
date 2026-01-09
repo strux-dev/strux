@@ -1,6 +1,9 @@
 #!/bin/bash
 
-set -e
+set -eo pipefail
+
+# Trap errors and print the failing command/line
+trap 'echo "Error: Command failed at line $LINENO with exit code $?: $BASH_COMMAND" >&2' ERR
 
 progress() {
     echo "STRUX_PROGRESS: $1"
@@ -12,6 +15,11 @@ progress "Post-processing Root Filesystem..."
 PROJECT_DIR="/project"
 PROJECT_DIST_DIR="/project/dist"
 ROOTFS_DIR="/tmp/rootfs"
+
+# Function to run commands in chroot
+run_in_chroot() {
+    chroot "$ROOTFS_DIR" /bin/bash -c "$1"
+}
 
 # Create a temporary directory for the root filesystem
 mkdir -p "$ROOTFS_DIR"
@@ -34,7 +42,7 @@ progress "Reading configuration from YAML files..."
 if [ -n "$PRESELECTED_BSP" ]; then
     BSP_NAME="$PRESELECTED_BSP"
 else
-    BSP_NAME=$(yq eval '.bsp' "$PROJECT_DIR/strux.yaml" 2>/dev/null || echo "")
+    BSP_NAME=$(yq '.bsp' "$PROJECT_DIR/strux.yaml" 2>/dev/null || echo "")
     
     if [ -z "$BSP_NAME" ]; then
         echo "Error: Could not read BSP name from $PROJECT_DIR/strux.yaml and PRESELECTED_BSP is not set"
@@ -59,10 +67,10 @@ fi
 # ============================================================================
 
 # Read BSP overlay path from BSP config
-BSP_OVERLAY=$(yq eval '.bsp.rootfs.overlay' "$BSP_CONFIG" 2>/dev/null || echo "")
+BSP_OVERLAY=$(yq '.bsp.rootfs.overlay' "$BSP_CONFIG" 2>/dev/null || echo "")
 
 # Read root project overlay path from strux.yaml
-ROOT_OVERLAY=$(yq eval '.rootfs.overlay' "$PROJECT_DIR/strux.yaml" 2>/dev/null || echo "")
+ROOT_OVERLAY=$(yq '.rootfs.overlay' "$PROJECT_DIR/strux.yaml" 2>/dev/null || echo "")
 
 # Apply BSP overlay first (if it exists)
 if [ -n "$BSP_OVERLAY" ]; then
@@ -142,7 +150,7 @@ cp "$PROJECT_DIR/dist/cache/cage" "$ROOTFS_DIR/usr/bin/cage"
 chmod +x "$ROOTFS_DIR/usr/bin/cage"
 
 # Copy the Frontend
-cp -r "$PROJECT_DIR/dist/cache/frontend/dist" "$ROOTFS_DIR/strux/frontend"
+cp -r "$PROJECT_DIR/dist/cache/frontend" "$ROOTFS_DIR/strux/frontend"
 
 # Copy Strux Client (Handles a bunch of system services)
 cp "$PROJECT_DIR/dist/cache/client" "$ROOTFS_DIR/strux/client"
@@ -190,34 +198,34 @@ mount --bind /sys /tmp/rootfs/sys || true
 
 # Enable systemd services
 progress "Enabling systemd services..."
-chroot /tmp/rootfs systemctl enable seatd.service || true
-chroot /tmp/rootfs systemctl enable dbus.service || true
-chroot /tmp/rootfs systemctl enable strux.service || true
-chroot /tmp/rootfs systemctl enable strux-network.service || true
+run_in_chroot "systemctl enable seatd.service || true"
+run_in_chroot "systemctl enable dbus.service || true"
+run_in_chroot "systemctl enable strux.service || true"
+run_in_chroot "systemctl enable strux-network.service || true"
 
 
 # Enable Plymouth services for boot splash
-chroot /tmp/rootfs systemctl enable plymouth-start.service || true
-chroot /tmp/rootfs systemctl enable plymouth-read-write.service || true
+run_in_chroot "systemctl enable plymouth-start.service || true"
+run_in_chroot "systemctl enable plymouth-read-write.service || true"
 
 # Mask the default Plymouth quit services - we control quit from strux.sh
 # This prevents Plymouth from quitting before Cage is ready
-chroot /tmp/rootfs systemctl mask plymouth-quit.service || true
-chroot /tmp/rootfs systemctl mask plymouth-quit-wait.service || true
+run_in_chroot "systemctl mask plymouth-quit.service || true"
+run_in_chroot "systemctl mask plymouth-quit-wait.service || true"
 
 # Disable unnecessary services to speed up boot
-chroot /tmp/rootfs systemctl mask systemd-timesyncd.service || true
-chroot /tmp/rootfs systemctl mask apt-daily.timer || true
-chroot /tmp/rootfs systemctl mask apt-daily-upgrade.timer || true
+run_in_chroot "systemctl mask systemd-timesyncd.service || true"
+run_in_chroot "systemctl mask apt-daily.timer || true"
+run_in_chroot "systemctl mask apt-daily-upgrade.timer || true"
 
 # Enable systemd-networkd for automatic network configuration
-chroot /tmp/rootfs systemctl enable systemd-networkd.service || true
+run_in_chroot "systemctl enable systemd-networkd.service || true"
 
 # Enable systemd-resolved for DNS resolution
-chroot /tmp/rootfs systemctl enable systemd-resolved.service || true
+run_in_chroot "systemctl enable systemd-resolved.service || true"
 
 # Configure resolv.conf to use systemd-resolved stub resolver
-chroot /tmp/rootfs ln -sf /run/systemd/resolve/stub-resolv.conf /etc/resolv.conf
+run_in_chroot "ln -sf /run/systemd/resolve/stub-resolv.conf /etc/resolv.conf"
 
 # Ensure nsswitch.conf uses resolve for DNS (required for systemd-resolved)
 if grep -q "^hosts:" /tmp/rootfs/etc/nsswitch.conf; then
@@ -225,16 +233,16 @@ if grep -q "^hosts:" /tmp/rootfs/etc/nsswitch.conf; then
 fi
 
 # Disable getty services to prevent login prompt flash during boot
-chroot /tmp/rootfs systemctl mask getty@tty1.service || true
-chroot /tmp/rootfs systemctl mask getty@tty2.service || true
-chroot /tmp/rootfs systemctl mask getty@tty3.service || true
-chroot /tmp/rootfs systemctl mask getty@tty4.service || true
-chroot /tmp/rootfs systemctl mask getty@tty5.service || true
-chroot /tmp/rootfs systemctl mask getty@tty6.service || true
-chroot /tmp/rootfs systemctl mask serial-getty@ttyS0.service || true
-chroot /tmp/rootfs systemctl mask serial-getty@ttyAMA0.service || true
-chroot /tmp/rootfs systemctl mask console-getty.service || true
-chroot /tmp/rootfs systemctl mask getty.target || true
+run_in_chroot "systemctl mask getty@tty1.service || true"
+run_in_chroot "systemctl mask getty@tty2.service || true"
+run_in_chroot "systemctl mask getty@tty3.service || true"
+run_in_chroot "systemctl mask getty@tty4.service || true"
+run_in_chroot "systemctl mask getty@tty5.service || true"
+run_in_chroot "systemctl mask getty@tty6.service || true"
+run_in_chroot "systemctl mask serial-getty@ttyS0.service || true"
+run_in_chroot "systemctl mask serial-getty@ttyAMA0.service || true"
+run_in_chroot "systemctl mask console-getty.service || true"
+run_in_chroot "systemctl mask getty.target || true"
 
 
 # ============================================================================
@@ -247,11 +255,11 @@ chroot /tmp/rootfs systemctl mask getty.target || true
 progress "Configuring hostname..."
 
 # Read hostname from strux.yaml first, then fall back to bsp.yaml
-HOSTNAME=$(yq eval '.hostname' "$PROJECT_DIR/strux.yaml" 2>/dev/null || echo "")
+HOSTNAME=$(yq '.hostname' "$PROJECT_DIR/strux.yaml" 2>/dev/null || echo "")
 
 # If not found in strux.yaml, try bsp.yaml
 if [ -z "$HOSTNAME" ] || [ "$HOSTNAME" = "null" ]; then
-    HOSTNAME=$(yq eval '.bsp.hostname' "$BSP_CONFIG" 2>/dev/null || echo "")
+    HOSTNAME=$(yq '.bsp.hostname' "$BSP_CONFIG" 2>/dev/null || echo "")
 fi
 
 # If still not found, use a default
@@ -307,7 +315,7 @@ KERNEL_VERSION=$(ls /tmp/rootfs/lib/modules 2>/dev/null | head -n 1)
 
 if [ -n "$KERNEL_VERSION" ]; then
 # Update initramfs with Plymouth
-chroot /tmp/rootfs /bin/bash -c "update-initramfs -u -k $KERNEL_VERSION" || echo "Warning: initramfs update failed"
+run_in_chroot "update-initramfs -u -k $KERNEL_VERSION" || echo "Warning: initramfs update failed"
 
 # Copy updated initramfs to dist (use dev prefix in dev mode)
 INITRD=$(ls /tmp/rootfs/boot/initrd.img-* 2>/dev/null | head -n 1)

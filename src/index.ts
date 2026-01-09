@@ -9,6 +9,7 @@ import { Settings, type ArchType, type TemplateType } from "./settings"
 import { STRUX_VERSION } from "./version"
 import { Logger } from "./utils/log"
 import { init } from "./commands/init"
+import { build } from "./commands/build"
 
 const program = new Command()
 
@@ -82,5 +83,24 @@ program.command("types")
         }
     })
 
+
+program.command("build")
+    .argument("<bsp>", "The board support package to build for")
+    .option("--clean", "Clean the build cache before building")
+    .option("--dev", "Build a development image")
+    .action(async (bspName: string, options: {clean?: boolean, dev?: boolean}) => {
+
+        try {
+            Logger.title("Building Strux OS Image for BSP: " + bspName)
+            Settings.bspName = bspName
+            Settings.clean = options.clean ?? false
+            await build(options.dev ?? false)
+        } catch (err) {
+            Logger.error(`Build failed: ${err instanceof Error ? err.message : String(err)}`)
+            process.exit(1)
+        }
+
+
+    })
 
 program.parse()

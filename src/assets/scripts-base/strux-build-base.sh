@@ -1,6 +1,9 @@
 #!/bin/bash
 
-set -e
+set -eo pipefail
+
+# Trap errors and print the failing command/line
+trap 'echo "Error: Command failed at line $LINENO with exit code $?: $BASH_COMMAND" >&2' ERR
 
 # ============================================================================
 # SECTION 1: INITIALIZATION AND HELPER FUNCTIONS
@@ -36,7 +39,7 @@ if [ -n "$PRESELECTED_BSP" ]; then
     BSP_NAME="$PRESELECTED_BSP"
     progress "Using BSP from environment variable: $BSP_NAME"
 else
-    BSP_NAME=$(yq eval '.bsp' "$PROJECT_DIR/strux.yaml" 2>/dev/null || echo "")
+    BSP_NAME=$(yq '.bsp' "$PROJECT_DIR/strux.yaml" 2>/dev/null || echo "")
     
     if [ -z "$BSP_NAME" ]; then
         echo "Error: Could not read BSP name from $PROJECT_DIR/strux.yaml and PRESELECTED_BSP is not set"
@@ -56,7 +59,7 @@ if [ ! -f "$BSP_CONFIG" ]; then
 fi
 
 # Get architecture from BSP config
-ARCH=$(yq eval '.bsp.arch' "$BSP_CONFIG" 2>/dev/null || echo "")
+ARCH=$(yq '.bsp.arch' "$BSP_CONFIG" 2>/dev/null | xargs || echo "")
 
 if [ -z "$ARCH" ]; then
     echo "Error: Could not read architecture from $BSP_CONFIG"
@@ -79,10 +82,10 @@ fi
 # ============================================================================
 
 # Collect packages from global rootfs.packages
-GLOBAL_PACKAGES=$(yq eval '.rootfs.packages[]?' "$PROJECT_DIR/strux.yaml" 2>/dev/null || echo "")
+GLOBAL_PACKAGES=$(yq '.rootfs.packages[]?' "$PROJECT_DIR/strux.yaml" 2>/dev/null || echo "")
 
 # Collect packages from BSP-specific rootfs.packages
-BSP_PACKAGES=$(yq eval '.bsp.rootfs.packages[]?' "$BSP_CONFIG" 2>/dev/null || echo "")
+BSP_PACKAGES=$(yq '.bsp.rootfs.packages[]?' "$BSP_CONFIG" 2>/dev/null || echo "")
 
 # Separate repository packages from .deb file paths
 REPO_PACKAGES=""
@@ -154,7 +157,7 @@ done <<< "$BSP_PACKAGES"
 
 # Trim trailing spaces/newlines
 REPO_PACKAGES=$(echo "$REPO_PACKAGES" | sed 's/[[:space:]]*$//')
-DEB_FILES=$(echo -e "$DEB_FILES" | grep -v '^$')
+DEB_FILES=$(echo -e "$DEB_FILES" | grep -v '^$' || true)
 
 # ============================================================================
 # SECTION 4: BUILD ENVIRONMENT SETUP
@@ -205,21 +208,21 @@ progress "Running debootstrap (downloading Debian packages)..."
 # If the debian architecture is the same as the host architecture, we can use the native debootstrap
 if [ "$DEBIAN_ARCH" = "$HOST_ARCH" ]; then
     # Native architecture - simple debootstrap
-    debootstrap \\
-        --variant=minbase \\
-        --include=ca-certificates \\
-        "$DEBIAN_SUITE" \\
-        "$ROOTFS_DIR" \\
+    debootstrap \
+        --variant=minbase \
+        --include=ca-certificates \
+        "$DEBIAN_SUITE" \
+        "$ROOTFS_DIR" \
         http://deb.debian.org/debian
 else
     # Cross-architecture - use foreign mode with qemu
-    debootstrap \\
-        --arch="$DEBIAN_ARCH" \\
-        --variant=minbase \\
-        --foreign \\
-        --include=ca-certificates \\
-        "$DEBIAN_SUITE" \\
-        "$ROOTFS_DIR" \\
+    debootstrap \
+        --arch="$DEBIAN_ARCH" \
+        --variant=minbase \
+        --foreign \
+        --include=ca-certificates \
+        "$DEBIAN_SUITE" \
+        "$ROOTFS_DIR" \
         http://deb.debian.org/debian
 
     # Copy QEMU static binary for second stage
@@ -417,7 +420,7 @@ fi
 # ============================================================================
 
 # Check if custom kernel is enabled in BSP config
-CUSTOM_KERNEL=$(yq eval '.bsp.boot.kernel.custom_kernel' "$BSP_CONFIG" 2>/dev/null || echo "false")
+CUSTOM_KERNEL=$(yq '.bsp.boot.kernel.custom_kernel' "$BSP_CONFIG" 2>/dev/null || echo "false")
 
 # Set STRUX_CUSTOM_KERNEL environment variable based on BSP config
 if [ "$CUSTOM_KERNEL" = "true" ]; then
