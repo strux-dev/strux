@@ -190,6 +190,7 @@ VERSIONEOF
 
             # Node.js for frontend development (Vite, etc.)
             pkgs.nodejs
+            pkgs.nodePackages.npm
 
             # Development utilities
             pkgs.git
@@ -203,6 +204,7 @@ VERSIONEOF
             echo "  go       $(go version | cut -d' ' -f3)"
             echo "  bun      $(bun --version)"
             echo "  node     $(node --version)"
+            echo "  npm      $(npm --version)"
             echo ""
             echo "Quick commands:"
             echo "  bun run dev          - Run CLI in development mode"
