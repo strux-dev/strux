@@ -98,8 +98,10 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 # Install cross-architecture development libraries for cross-compilation
 # These are needed when building Cage and WPE extension for different target architectures
+# Split into separate RUN commands per architecture to avoid multiarch conflicts
+
+# ARM64 cross-architecture development libraries
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    # ARM64 cross-architecture development libraries
     libwlroots-0.19-dev:arm64 \
     libwayland-dev:arm64 \
     libglib2.0-dev:arm64 \
@@ -115,7 +117,10 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libwpewebkit-2.0-dev:arm64 \
     libjson-glib-dev:arm64 \
     libsoup-3.0-dev:arm64 \
-    # x86_64 cross-architecture development libraries (if building on ARM64)
+    && rm -rf /var/lib/apt/lists/*
+
+# x86_64 cross-architecture development libraries (if building on ARM64)
+RUN apt-get update && apt-get install -y --no-install-recommends \
     libwlroots-0.19-dev:amd64 \
     libwayland-dev:amd64 \
     libglib2.0-dev:amd64 \
@@ -131,7 +136,13 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libwpewebkit-2.0-dev:amd64 \
     libjson-glib-dev:amd64 \
     libsoup-3.0-dev:amd64 \
-    # ARMHF (ARMv7) cross-architecture development libraries
+    && rm -rf /var/lib/apt/lists/*
+
+# ARMHF (ARMv7) cross-architecture development libraries
+# Use --force-overwrite to handle shared file conflicts (e.g., inspector.gresource)
+# between different architecture versions of libwpewebkit
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    -o Dpkg::Options::="--force-overwrite" \
     libwlroots-0.19-dev:armhf \
     libwayland-dev:armhf \
     libglib2.0-dev:armhf \
