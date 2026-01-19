@@ -28,6 +28,16 @@ A framework for building kiosk-style operating systems. Strux enables developers
 
 ## Installation
 
+**Prerequisites:**
+- **Docker**: Required for the build process (containerized builds)
+- **Go 1.24+**: For Go application compilation and type introspection
+- **Bun 1.3.6** Optional, required for building Strux
+- **QEMU**: Optional, for local testing
+- **Node.js and npm**: Required for Frontend
+
+
+
+
 ### macOS (Homebrew)
 
 ```bash
@@ -589,12 +599,7 @@ Strux provides seamless integration between Go backends and TypeScript frontends
 2. **Type Extraction**: Extracts App struct fields and public methods
 3. **TypeScript Generation**: Creates `strux.d.ts` with proper type mappings
 
-## Requirements
 
-- **Docker**: Required for containerized builds
-- **Go 1.24+**: For Go application compilation and type introspection
-- **QEMU**: Optional, for local testing
-- **Node.js and npm**: Required for React/Vue frontends
 
 ## Development
 
