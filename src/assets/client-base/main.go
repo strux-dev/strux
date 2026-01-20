@@ -88,8 +88,8 @@ func main() {
 	cogURL := "http://" + connectedHost.Host + ":5173"
 	logger.Info("Using dev server URL: %s", cogURL)
 
-	// Launch Cage and Cog
-	if err := launchDevMode(cogURL); err != nil {
+	// Launch Cage and Cog with inspector if enabled
+	if err := launchDevMode(cogURL, &config.Inspector); err != nil {
 		logger.Error("Failed to launch dev mode: %v", err)
 		socket.Disconnect()
 		launchProduction()
@@ -129,12 +129,17 @@ func launchProduction() error {
 		return ErrBackendNotReady
 	}
 
-	// Launch Cage with backend URL
-	return cage.Launch("http://localhost:8080", resolution, splashImage)
+	// Launch Cage with backend URL (no inspector in production)
+	return cage.Launch(LaunchOptions{
+		CogURL:      "http://localhost:8080",
+		Resolution:  resolution,
+		SplashImage: splashImage,
+		Inspector:   nil,
+	})
 }
 
 // launchDevMode launches Cage in dev mode with the specified URL
-func launchDevMode(cogURL string) error {
+func launchDevMode(cogURL string, inspector *InspectorConfig) error {
 	logger := NewLogger("DevMode")
 
 	// Read display resolution
@@ -157,8 +162,13 @@ func launchDevMode(cogURL string) error {
 		return ErrBackendNotReady
 	}
 
-	// Launch Cage
-	return cage.Launch(cogURL, resolution, splashImage)
+	// Launch Cage with inspector if enabled
+	return cage.Launch(LaunchOptions{
+		CogURL:      cogURL,
+		Resolution:  resolution,
+		SplashImage: splashImage,
+		Inspector:   inspector,
+	})
 }
 
 // waitForShutdown blocks until SIGINT or SIGTERM is received

@@ -71,3 +71,13 @@ dev:
 
     # --- The Dev Client Key to use ---
     client_key: ${clientKey}
+
+  # --- WebKit Inspector Configuration ---
+  # --- Enables remote debugging via HTTP - open in any browser ---
+  inspector:
+
+    # --- Whether to enable the WebKit Inspector ---
+    enabled: true
+
+    # --- The port for the inspector HTTP server ---
+    port: 9222

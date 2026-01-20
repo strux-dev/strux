@@ -119,6 +119,14 @@ export async function run(options: RunOptions = {}) {
     }
 
 
+    // Build network configuration
+    // In dev mode, forward the WebKit Inspector HTTP port (default 9222) from host to guest
+    const inspectorPort = Settings.main?.dev?.inspector?.port ?? 9222
+    const inspectorEnabled = Settings.main?.dev?.inspector?.enabled ?? true
+    const netdevConfig = options.devMode && inspectorEnabled
+        ? `user,id=net0,hostfwd=tcp::${inspectorPort}-:${inspectorPort}`
+        : "user,id=net0"
+
     // Build the QEMU Arguments
     const args: string[] = [
         "-machine", machineType,
@@ -135,8 +143,8 @@ export async function run(options: RunOptions = {}) {
         "-serial", "mon:stdio",
         ...accelArgs,
 
-        // Network
-        "-netdev", "user,id=net0",
+        // Network (with inspector port forwarding in dev mode)
+        "-netdev", netdevConfig,
         "-device", "virtio-net-pci,netdev=net0"
     ]
 

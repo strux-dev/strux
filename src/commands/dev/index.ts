@@ -132,6 +132,17 @@ export async function dev(): Promise<void> {
 
             qemuProcess = proc
 
+            // Display WebKit Inspector URL if enabled
+            const inspectorEnabled = Settings.main?.dev?.inspector?.enabled ?? true
+            const inspectorPort = Settings.main?.dev?.inspector?.port ?? 9222
+
+            if (inspectorEnabled) {
+
+                Logger.info(`WebKit Inspector: http://localhost:${inspectorPort}`)
+                Logger.info("(Open in any browser to debug the frontend)")
+
+            }
+
             // Handle QEMU exit
             proc.exited.then((code) => {
 

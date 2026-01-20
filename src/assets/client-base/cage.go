@@ -21,6 +21,18 @@ import (
 // ErrBackendNotReady is returned when the backend doesn't start in time
 var ErrBackendNotReady = errors.New("backend not ready")
 
+// LaunchOptions contains configuration for launching Cage
+type LaunchOptions struct {
+	// CogURL is the URL to load in Cog browser
+	CogURL string
+	// Resolution is the display resolution (e.g., "1920x1080")
+	Resolution string
+	// SplashImage is the path to the splash image (optional)
+	SplashImage string
+	// Inspector holds the WebKit Inspector configuration (optional, for dev mode)
+	Inspector *InspectorConfig
+}
+
 // CageLauncher manages the Cage compositor process
 type CageLauncher struct {
 	process *exec.Cmd
@@ -64,15 +76,15 @@ func (c *CageLauncher) WaitForBackend(timeout time.Duration) bool {
 }
 
 // Launch starts Cage compositor with Cog browser
-func (c *CageLauncher) Launch(cogURL, resolution, splashImage string) error {
-	c.logger.Info("Launching Cage and Cog with URL: %s", cogURL)
+func (c *CageLauncher) Launch(opts LaunchOptions) error {
+	c.logger.Info("Launching Cage and Cog with URL: %s", opts.CogURL)
 
 	// Build Cage arguments
 	args := []string{}
 
 	// Add splash image if provided
-	if splashImage != "" {
-		args = append(args, fmt.Sprintf("--splash-image=%s", splashImage))
+	if opts.SplashImage != "" {
+		args = append(args, fmt.Sprintf("--splash-image=%s", opts.SplashImage))
 	}
 
 	// Build the shell command to run inside Cage
@@ -80,7 +92,7 @@ func (c *CageLauncher) Launch(cogURL, resolution, splashImage string) error {
 	// 2. Launch Cog browser with the specified URL
 	shellCmd := fmt.Sprintf(
 		`wlr-randr --output Virtual-1 --mode "%s" 2>/dev/null || true; exec cog "%s" --web-extensions-dir=/usr/lib/wpe-web-extensions`,
-		resolution, cogURL,
+		opts.Resolution, opts.CogURL,
 	)
 
 	args = append(args, "--", "sh", "-c", shellCmd)
@@ -95,6 +107,15 @@ func (c *CageLauncher) Launch(cogURL, resolution, splashImage string) error {
 		"WEBKIT_DISABLE_SANDBOX_THIS_IS_DANGEROUS=1",
 		"WEBKIT_FORCE_SANDBOX=0",
 	)
+
+	// Add WebKit Inspector HTTP server if enabled (dev mode)
+	if opts.Inspector != nil && opts.Inspector.Enabled {
+		inspectorAddr := fmt.Sprintf("0.0.0.0:%d", opts.Inspector.Port)
+		c.process.Env = append(c.process.Env,
+			fmt.Sprintf("WEBKIT_INSPECTOR_HTTP_SERVER=%s", inspectorAddr),
+		)
+		c.logger.Info("WebKit Inspector HTTP server enabled on port %d", opts.Inspector.Port)
+	}
 
 	// Open log file
 	var err error

@@ -19,6 +19,14 @@ type Host struct {
 	Port int    `json:"port"`
 }
 
+// InspectorConfig holds the WebKit Inspector configuration
+type InspectorConfig struct {
+	// Enabled controls whether the inspector is active
+	Enabled bool `json:"enabled"`
+	// Port is the port the inspector HTTP server listens on
+	Port int `json:"port"`
+}
+
 // Config holds the dev client configuration
 type Config struct {
 	// ClientKey is the authentication key for the dev server
@@ -29,6 +37,9 @@ type Config struct {
 
 	// FallbackHosts are hosts to try if mDNS discovery fails
 	FallbackHosts []Host `json:"fallbackHosts"`
+
+	// Inspector holds the WebKit Inspector configuration
+	Inspector InspectorConfig `json:"inspector"`
 }
 
 // LoadConfig loads the configuration from the specified path

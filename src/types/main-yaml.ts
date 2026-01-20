@@ -70,9 +70,16 @@ const DevServerSchema = z.object({
     client_key: z.string(),
 })
 
+// WebKit Inspector configuration schema
+const DevInspectorSchema = z.object({
+    enabled: z.boolean().default(true),
+    port: z.number().int().positive().default(9222),
+})
+
 // Dev configuration schema
 const DevSchema = z.object({
     server: DevServerSchema.optional(),
+    inspector: DevInspectorSchema.optional(),
 })
 
 // Main strux.yaml schema
