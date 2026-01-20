@@ -45,6 +45,9 @@ export class SettingsConfig {
     // To show Vite dev server output
     devViteDebug = false
 
+    // To show app output in dev mode (defaults to true)
+    devAppDebug = true
+
 
     constructor() {
 

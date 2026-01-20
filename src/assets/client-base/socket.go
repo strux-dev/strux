@@ -303,9 +303,19 @@ func (s *SocketClient) handleStartLogs(payload StartLogsPayload) {
 	}
 
 	var err error
-	if payload.Type == "service" && payload.Service != "" {
-		err = s.logStreams.StartServiceStream(payload.StreamID, payload.Service, callback)
-	} else {
+	switch payload.Type {
+	case "service":
+		if payload.Service != "" {
+			err = s.logStreams.StartServiceStream(payload.StreamID, payload.Service, callback)
+		} else {
+			err = s.logStreams.StartJournalctlStream(payload.StreamID, callback)
+		}
+	case "app":
+		// Stream the user's Go app output from /tmp/strux-backend.log
+		err = s.logStreams.StartAppLogStream(payload.StreamID, callback)
+	case "journalctl":
+		err = s.logStreams.StartJournalctlStream(payload.StreamID, callback)
+	default:
 		err = s.logStreams.StartJournalctlStream(payload.StreamID, callback)
 	}
 

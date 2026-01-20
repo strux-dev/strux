@@ -173,7 +173,12 @@ export async function dev(): Promise<void> {
 
             Logger.success("Device connected to dev server")
 
-            // Only start streaming logs in debug mode
+            // Start streaming app logs (user's Go app output) unless disabled
+            if (Settings.devAppDebug) {
+                devServer?.startLogStream("app", "app")
+            }
+
+            // Only start streaming system logs in debug mode
             if (Settings.devDebug) {
                 devServer?.startLogStream("system", "journalctl")
             }

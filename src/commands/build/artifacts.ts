@@ -15,11 +15,11 @@ import { Logger } from "../../utils/log"
 
 // Plymouth Files
 //@ts-ignore
-import artifactPlymouthTheme from "../../assets/scripts-base/artifacts/plymouth/strux.plymouth" with { type: "file" }
+import artifactPlymouthTheme from "../../assets/scripts-base/artifacts/plymouth/strux.plymouth" with { type: "text" }
 //@ts-ignore
-import artifactPlymouthScript from "../../assets/scripts-base/artifacts/plymouth/strux.script" with { type: "file" }
+import artifactPlymouthScript from "../../assets/scripts-base/artifacts/plymouth/strux.script" with { type: "text" }
 //@ts-ignore
-import artifactPlymouthConf from "../../assets/scripts-base/artifacts/plymouth/plymouthd.conf" with { type: "file" }
+import artifactPlymouthConf from "../../assets/scripts-base/artifacts/plymouth/plymouthd.conf" with { type: "text" }
 
 // Init Services
 // @ts-ignore
@@ -149,7 +149,9 @@ export async function copyBootSplashLogo(): Promise<void> {
     // Check if source logo file exists
     if (!fileExists(sourceLogoPath)) {
         Logger.error(`Logo file not found: ${sourceLogoPath}. Please check your strux.yaml configuration. Using a default logo.png instead...`)
-        await Bun.write(destLogoPath, defaultLogoPNG)
+        // For bundled binary files, we need to read from the bunfs path
+        const defaultLogoFile = Bun.file(defaultLogoPNG)
+        await Bun.write(destLogoPath, defaultLogoFile)
         return Logger.success("Using default logo.png")
     }
 

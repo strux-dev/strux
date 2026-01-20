@@ -133,7 +133,8 @@ program.command("dev")
     .option("--clean", "Clean the build cache before building")
     .option("--debug", "Show device log streams")
     .option("--vite", "Show Vite dev server output")
-    .action(async (options: {remote?: boolean, clean?: boolean, debug?: boolean, vite?: boolean}) => {
+    .option("--no-app-debug", "Disable app output streaming")
+    .action(async (options: {remote?: boolean, clean?: boolean, debug?: boolean, vite?: boolean, appDebug?: boolean}) => {
 
         try {
 
@@ -142,6 +143,7 @@ program.command("dev")
             Settings.clean = options.clean ?? false
             Settings.devDebug = options.debug ?? false
             Settings.devViteDebug = options.vite ?? false
+            Settings.devAppDebug = options.appDebug ?? true
             await dev()
 
         } catch (err) {

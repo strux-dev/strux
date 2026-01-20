@@ -50,7 +50,7 @@ interface BinaryPayload {
 
 interface StartLogsPayload {
     streamId: string
-    type: "journalctl" | "service"
+    type: "journalctl" | "service" | "app"
     service?: string
 }
 
@@ -460,9 +460,18 @@ export class DevServer {
 
         const service = payload.service ? chalk.cyan(`[${payload.service}]`) : ""
 
-        const streamId = chalk.magenta(`[${payload.streamId}]`)
+        // Use different colors for different stream types
+        let streamId: string
+        let line: string
 
-        const line = payload.line
+        if (payload.streamId === "app") {
+            // App logs get a green prefix and the line is highlighted
+            streamId = chalk.green.bold("[APP]")
+            line = chalk.green(payload.line)
+        } else {
+            streamId = chalk.magenta(`[${payload.streamId}]`)
+            line = payload.line
+        }
 
         // Print the log line to console
         console.log(`${timestamp} ${streamId} ${service} ${line}`)
@@ -574,14 +583,15 @@ export class DevServer {
 
     /**
      * Start a log stream on the client.
-     * Use "journalctl" type for all system logs, or "service" type with a service name.
+     * Use "journalctl" type for all system logs, "service" type with a service name,
+     * or "app" type for the user's Go app output.
      *
      * @param streamId - Unique identifier for this log stream
-     * @param type - Type of log stream: "journalctl" or "service"
+     * @param type - Type of log stream: "journalctl", "service", or "app"
      * @param service - Service name (required if type is "service")
      * @returns true if the event was sent successfully
      */
-    public startLogStream(streamId: string, type: "journalctl" | "service", service?: string): boolean {
+    public startLogStream(streamId: string, type: "journalctl" | "service" | "app", service?: string): boolean {
 
         if (type === "service" && !service) {
 
