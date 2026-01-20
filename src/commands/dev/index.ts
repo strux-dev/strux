@@ -132,9 +132,9 @@ export async function dev(): Promise<void> {
 
             qemuProcess = proc
 
-            // Display WebKit Inspector URL if enabled
-            const inspectorEnabled = Settings.main?.dev?.inspector?.enabled ?? true
-            const inspectorPort = Settings.main?.dev?.inspector?.port ?? 9222
+            // Display WebKit Inspector URL if explicitly enabled in strux.yaml
+            const inspectorEnabled = Settings.main?.dev?.inspector?.enabled ?? false
+            const inspectorPort = Settings.main?.dev?.inspector?.port ?? 9223
 
             if (inspectorEnabled) {
 
@@ -188,6 +188,9 @@ export async function dev(): Promise<void> {
             if (Settings.devAppDebug) {
                 devServer?.startLogStream("app", "app")
             }
+
+            // Start streaming cage logs (Cage/Cog compositor output)
+            devServer?.startLogStream("cage", "cage")
 
             // Only start streaming system logs in debug mode
             if (Settings.devDebug) {

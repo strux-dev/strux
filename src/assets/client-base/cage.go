@@ -109,6 +109,8 @@ func (c *CageLauncher) Launch(opts LaunchOptions) error {
 	)
 
 	// Add WebKit Inspector HTTP server if enabled (dev mode)
+	// Must bind to 0.0.0.0 so it's accessible via QEMU port forwarding
+	// (127.0.0.1 is not reachable from the host through QEMU's hostfwd)
 	if opts.Inspector != nil && opts.Inspector.Enabled {
 		inspectorAddr := fmt.Sprintf("0.0.0.0:%d", opts.Inspector.Port)
 		c.process.Env = append(c.process.Env,

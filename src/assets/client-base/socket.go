@@ -30,7 +30,7 @@ type BinaryPayload struct {
 // StartLogsPayload represents the payload for starting log streams
 type StartLogsPayload struct {
 	StreamID string `json:"streamId"`
-	Type     string `json:"type"`    // "journalctl" or "service"
+	Type     string `json:"type"`    // "journalctl", "service", "app", or "cage"
 	Service  string `json:"service"` // service name if type is "service"
 }
 
@@ -313,6 +313,9 @@ func (s *SocketClient) handleStartLogs(payload StartLogsPayload) {
 	case "app":
 		// Stream the user's Go app output from /tmp/strux-backend.log
 		err = s.logStreams.StartAppLogStream(payload.StreamID, callback)
+	case "cage":
+		// Stream Cage/Cog output from /tmp/strux-cage.log
+		err = s.logStreams.StartCageLogStream(payload.StreamID, callback)
 	case "journalctl":
 		err = s.logStreams.StartJournalctlStream(payload.StreamID, callback)
 	default:

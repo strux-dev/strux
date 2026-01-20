@@ -329,7 +329,8 @@ run_in_chroot "DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-re
     cog \
     libwpewebkit-2.0-1 \
     libwpe-1.0-1 \
-    libwpebackend-fdo-1.0-1"
+    libwpebackend-fdo-1.0-1" \
+    shared-mime-info
 
 # Install fonts and media support
 progress "Installing fonts and media support..."

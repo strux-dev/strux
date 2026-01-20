@@ -150,6 +150,35 @@ func (l *LogStreamer) StartAppLogStream(streamID string, callback LogCallback) e
 	return nil
 }
 
+// StartCageLogStream starts streaming the Cage compositor log file
+// This tails /tmp/strux-cage.log where Cage/Cog output is written
+func (l *LogStreamer) StartCageLogStream(streamID string, callback LogCallback) error {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+
+	if _, exists := l.streams[streamID]; exists {
+		return fmt.Errorf("stream %s already exists", streamID)
+	}
+
+	l.logger.Info("Starting cage log stream: %s", streamID)
+
+	// Create the stream
+	stream := &LogStream{
+		ID:         streamID,
+		StreamType: LogStreamTypeFile,
+		callback:   callback,
+		done:       make(chan struct{}),
+	}
+
+	// Start tailing the log file
+	if err := l.startFileStream(stream, "/tmp/strux-cage.log"); err != nil {
+		return err
+	}
+
+	l.streams[streamID] = stream
+	return nil
+}
+
 // startCommandStream starts a command and reads its output
 func (l *LogStreamer) startCommandStream(stream *LogStream) error {
 	// Get stdout pipe

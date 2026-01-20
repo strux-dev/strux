@@ -74,10 +74,7 @@ dev:
 
   # --- WebKit Inspector Configuration ---
   # --- Enables remote debugging via HTTP - open in any browser ---
-  inspector:
-
-    # --- Whether to enable the WebKit Inspector ---
-    enabled: true
-
-    # --- The port for the inspector HTTP server ---
-    port: 9222
+  # --- Uncomment to enable: access at http://localhost:9223 during dev mode ---
+  # inspector:
+  #   enabled: true
+  #   port: 9223

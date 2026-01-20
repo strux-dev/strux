@@ -1,7 +1,9 @@
 [Unit]
 Description=Strux Kiosk Service
-After=network.target seatd.service dbus.service systemd-logind.service plymouth-start.service strux-dev-watcher.path strux-mount-setup.service
-Wants=seatd.service dbus.service plymouth-start.service strux-dev-watcher.path strux-mount-setup.service
+# Use network-online.target to ensure network is fully up with IP addresses
+# This is critical for WebKit Inspector which binds to 0.0.0.0
+After=network-online.target seatd.service dbus.service systemd-logind.service plymouth-start.service strux-dev-watcher.path strux-mount-setup.service
+Wants=network-online.target seatd.service dbus.service plymouth-start.service strux-dev-watcher.path strux-mount-setup.service
 Requires=seatd.service
 
 [Service]

@@ -120,9 +120,9 @@ export async function run(options: RunOptions = {}) {
 
 
     // Build network configuration
-    // In dev mode, forward the WebKit Inspector HTTP port (default 9222) from host to guest
-    const inspectorPort = Settings.main?.dev?.inspector?.port ?? 9222
-    const inspectorEnabled = Settings.main?.dev?.inspector?.enabled ?? true
+    // In dev mode, forward the WebKit Inspector HTTP port (default 9223) from host to guest if enabled
+    const inspectorPort = Settings.main?.dev?.inspector?.port ?? 9223
+    const inspectorEnabled = Settings.main?.dev?.inspector?.enabled ?? false
     const netdevConfig = options.devMode && inspectorEnabled
         ? `user,id=net0,hostfwd=tcp::${inspectorPort}-:${inspectorPort}`
         : "user,id=net0"

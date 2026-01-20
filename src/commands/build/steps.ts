@@ -153,8 +153,9 @@ export async function buildStruxClient(addDevMode = false): Promise<void> {
             useMDNS: Settings.main?.dev?.server?.use_mdns_on_client ?? true,
             fallbackHosts: Settings.main?.dev?.server?.fallback_hosts ?? [],
             inspector: {
-                enabled: Settings.main?.dev?.inspector?.enabled ?? true,
-                port: Settings.main?.dev?.inspector?.port ?? 9222,
+                // Default to disabled - user must explicitly enable in strux.yaml
+                enabled: Settings.main?.dev?.inspector?.enabled ?? false,
+                port: Settings.main?.dev?.inspector?.port ?? 9223,
             },
         }
         await Bun.write(devEnvPath, JSON.stringify(devEnvJSON, null, 2))

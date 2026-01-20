@@ -72,8 +72,8 @@ const DevServerSchema = z.object({
 
 // WebKit Inspector configuration schema
 const DevInspectorSchema = z.object({
-    enabled: z.boolean().default(true),
-    port: z.number().int().positive().default(9222),
+    enabled: z.boolean().default(false),
+    port: z.number().int().positive().default(9223),
 })
 
 // Dev configuration schema

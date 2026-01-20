@@ -230,6 +230,10 @@ run_in_chroot "systemctl mask apt-daily-upgrade.timer || true"
 # Enable systemd-networkd for automatic network configuration
 run_in_chroot "systemctl enable systemd-networkd.service || true"
 
+# Enable systemd-networkd-wait-online to make network-online.target work
+# This ensures services depending on network-online.target wait for DHCP
+run_in_chroot "systemctl enable systemd-networkd-wait-online.service || true"
+
 # Enable systemd-resolved for DNS resolution
 run_in_chroot "systemctl enable systemd-resolved.service || true"
 
