@@ -81,23 +81,56 @@ func main() {
 
 	logger.Info("WebSocket connected to %s:%d", connectedHost.Host, connectedHost.Port)
 
-	// Wait a bit for connection to stabilize
-	time.Sleep(500 * time.Millisecond)
-
 	// Determine Cog URL - use discovered host but port 5173 (Vite dev server)
 	cogURL := "http://" + connectedHost.Host + ":5173"
 	logger.Info("Using dev server URL: %s", cogURL)
 
-	// Wait for dev server to be reachable before launching Cage
-	// This ensures network is fully ready and the Vite dev server is accessible
 	cage := CageLauncherInstance
-	if !cage.WaitForDevServer(cogURL, 30*time.Second) {
-		logger.Error("Dev server not reachable, falling back to production mode")
-		socket.Disconnect()
-		launchProduction()
-		waitForShutdown()
-		return
+
+	// Try to connect to dev server immediately (with short timeout)
+	// If it fails, then wait for network readiness and retry
+	logger.Info("Attempting to connect to dev server immediately...")
+	devServerReady := cage.WaitForDevServer(cogURL, 5*time.Second)
+
+	if !devServerReady {
+		// Dev server not immediately reachable - wait for network interface to be ready
+		// Cog needs network to load the URL, and WebKit Inspector needs it to bind to 0.0.0.0
+		logger.Info("Dev server not immediately reachable, waiting for network interface to be ready...")
+		if !cage.WaitForNetworkReady(30 * time.Second) {
+			logger.Error("Network interface not ready, falling back to production mode")
+			socket.Disconnect()
+			launchProduction()
+			waitForShutdown()
+			return
+		}
+
+		// Give network a moment to stabilize
+		logger.Info("Network ready, waiting for network to stabilize...")
+		time.Sleep(1 * time.Second)
+
+		// Now retry connecting to dev server
+		logger.Info("Retrying connection to dev server...")
+		if !cage.WaitForDevServer(cogURL, 30*time.Second) {
+			logger.Error("Dev server not reachable after network ready, falling back to production mode")
+			socket.Disconnect()
+			launchProduction()
+			waitForShutdown()
+			return
+		}
 	}
+
+	// Ensure network is ready for WebKit Inspector (if enabled)
+	// This is critical for binding to 0.0.0.0
+	if config.Inspector.Enabled {
+		logger.Info("WebKit Inspector enabled - ensuring network interface is ready...")
+		if !cage.WaitForNetworkReadyWithPort(10 * time.Second, config.Inspector.Port) {
+			logger.Warn("Network interface check failed, but continuing anyway...")
+		}
+	}
+
+	// Give everything a moment to stabilize before launching Cage
+	logger.Info("All checks complete, waiting 2 seconds before launching Cage...")
+	time.Sleep(2 * time.Second)
 
 	// Launch Cage and Cog with inspector if enabled
 	if err := launchDevMode(cogURL, &config.Inspector); err != nil {

@@ -12,10 +12,10 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"net"
 	"net/http"
 	"os"
 	"os/exec"
+	"strings"
 	"time"
 )
 
@@ -78,7 +78,16 @@ func (c *CageLauncher) WaitForBackend(timeout time.Duration) bool {
 
 // WaitForNetworkReady waits for the network interface to be ready to bind to 0.0.0.0
 // This is critical for WebKit Inspector which binds to 0.0.0.0:<port>
+// Checks:
+// 1) Port is free (inspector port if provided, or test port)
+// 2) At least one global IPv4 address exists (not 127.x, not 169.254.x)
+// 3) Default route is present
 func (c *CageLauncher) WaitForNetworkReady(timeout time.Duration) bool {
+	return c.WaitForNetworkReadyWithPort(timeout, 0)
+}
+
+// WaitForNetworkReadyWithPort waits for network readiness, checking a specific port
+func (c *CageLauncher) WaitForNetworkReadyWithPort(timeout time.Duration, inspectorPort int) bool {
 	c.logger.Info("Waiting for network interface to be ready (timeout: %v)...", timeout)
 
 	deadline := time.Now().Add(timeout)
@@ -87,25 +96,73 @@ func (c *CageLauncher) WaitForNetworkReady(timeout time.Duration) bool {
 	for time.Now().Before(deadline) {
 		attempt++
 
-		// Try to bind to 0.0.0.0 on a test port to verify network is ready
-		// This is the same binding that WebKit Inspector will attempt
-		testListener, err := net.Listen("tcp", "0.0.0.0:0")
-		if err != nil {
-			if attempt%10 == 1 { // Log every 10th attempt (every 5 seconds)
-				c.logger.Info("Network not ready yet (attempt %d): %v", attempt, err)
+		// Check 1: Port is free (if inspector port specified)
+		if inspectorPort > 0 {
+			if !c.isPortFree(inspectorPort) {
+				if attempt%10 == 1 {
+					c.logger.Info("Port %d not free yet (attempt %d)", inspectorPort, attempt)
+				}
+				time.Sleep(500 * time.Millisecond)
+				continue
 			}
-		} else {
-			// Successfully bound - network is ready
-			testListener.Close()
-			c.logger.Info("Network interface is ready! (after %d attempts)", attempt)
-			return true
 		}
 
-		time.Sleep(500 * time.Millisecond)
+		// Check 2: At least one global IPv4 address exists
+		hasGlobalIPv4 := c.hasGlobalIPv4()
+		if !hasGlobalIPv4 {
+			if attempt%10 == 1 {
+				c.logger.Info("No global IPv4 address yet (attempt %d)", attempt)
+			}
+			time.Sleep(500 * time.Millisecond)
+			continue
+		}
+
+		// Check 3: Default route is present
+		hasDefaultRoute := c.hasDefaultRoute()
+		if !hasDefaultRoute {
+			if attempt%10 == 1 {
+				c.logger.Info("No default route yet (attempt %d)", attempt)
+			}
+			time.Sleep(500 * time.Millisecond)
+			continue
+		}
+
+		// All checks passed - network is ready
+		c.logger.Info("Network interface is ready! (after %d attempts)", attempt)
+		return true
 	}
 
 	c.logger.Error("Network interface did not become ready within %v (after %d attempts)", timeout, attempt)
 	return false
+}
+
+// isPortFree checks if a port is free using ss command
+func (c *CageLauncher) isPortFree(port int) bool {
+	cmd := exec.Command("sh", "-c", fmt.Sprintf("ss -ltn | awk '{print $4}' | grep -q ':%d$'", port))
+	err := cmd.Run()
+	// If grep finds the port, it returns 0 (success), meaning port is NOT free
+	// If grep doesn't find it, it returns non-zero, meaning port IS free
+	return err != nil
+}
+
+// hasGlobalIPv4 checks if there's at least one global IPv4 address (not 127.x, not 169.254.x)
+func (c *CageLauncher) hasGlobalIPv4() bool {
+	cmd := exec.Command("ip", "-4", "-o", "addr", "show", "scope", "global")
+	output, err := cmd.Output()
+	if err != nil {
+		return false
+	}
+
+	// Check if output contains "inet " (IPv4 address)
+	return strings.Contains(string(output), "inet ")
+}
+
+// hasDefaultRoute checks if a default route is present
+func (c *CageLauncher) hasDefaultRoute() bool {
+	cmd := exec.Command("sh", "-c", "ip route | grep -q '^default '")
+	err := cmd.Run()
+	// grep returns 0 if found (success), non-zero if not found
+	return err == nil
 }
 
 // WaitForDevServer waits for the dev server (Vite) to be reachable at the specified URL
@@ -142,14 +199,8 @@ func (c *CageLauncher) WaitForDevServer(url string, timeout time.Duration) bool 
 func (c *CageLauncher) Launch(opts LaunchOptions) error {
 	c.logger.Info("Launching Cage and Cog with URL: %s", opts.CogURL)
 
-	// If WebKit Inspector is enabled, we must wait for network to be ready
-	// because Inspector binds to 0.0.0.0 which requires network interface to be up
-	if opts.Inspector != nil && opts.Inspector.Enabled {
-		c.logger.Info("WebKit Inspector enabled - waiting for network interface to be ready...")
-		if !c.WaitForNetworkReady(30 * time.Second) {
-			return fmt.Errorf("network interface not ready - cannot bind WebKit Inspector to 0.0.0.0")
-		}
-	}
+	// Note: Network readiness is checked before calling Launch() in dev mode
+	// This ensures both Cog and WebKit Inspector can use the network properly
 
 	// Build Cage arguments
 	args := []string{}
@@ -163,7 +214,7 @@ func (c *CageLauncher) Launch(opts LaunchOptions) error {
 	// 1. Set display resolution using wlr-randr
 	// 2. Launch Cog browser with the specified URL
 	shellCmd := fmt.Sprintf(
-		`wlr-randr --output Virtual-1 --mode "%s" 2>/dev/null || true; exec cog "%s" --web-extensions-dir=/usr/lib/wpe-web-extensions`,
+		`wlr-randr --output Virtual-1 --mode "%s" 2>/dev/null || true; exec cog "%s" --web-extensions-dir=/usr/lib/wpe-web-extensions --enable-developer-extras=1`,
 		opts.Resolution, opts.CogURL,
 	)
 
