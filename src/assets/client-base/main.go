@@ -90,7 +90,7 @@ func main() {
 	// Try to connect to dev server immediately (with short timeout)
 	// If it fails, then wait for network readiness and retry
 	logger.Info("Attempting to connect to dev server immediately...")
-	devServerReady := cage.WaitForDevServer(cogURL, 5*time.Second)
+	devServerReady := cage.WaitForDevServer(cogURL, 30*time.Second)
 
 	if !devServerReady {
 		// Dev server not immediately reachable - wait for network interface to be ready
@@ -123,7 +123,7 @@ func main() {
 	// This is critical for binding to 0.0.0.0
 	if config.Inspector.Enabled {
 		logger.Info("WebKit Inspector enabled - ensuring network interface is ready...")
-		if !cage.WaitForNetworkReadyWithPort(10 * time.Second, config.Inspector.Port) {
+		if !cage.WaitForNetworkReadyWithPort(10*time.Second, config.Inspector.Port) {
 			logger.Warn("Network interface check failed, but continuing anyway...")
 		}
 	}

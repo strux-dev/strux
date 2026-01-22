@@ -523,19 +523,19 @@ jobs:
           if [ -f CHANGELOG.md ]; then
             # Prefer the section matching the release version, fall back to the first section.
             awk -v version="${VERSION}" '
-              BEGIN { in=0 }
-              $0 ~ "^##[[:space:]]+v?" version "([[:space:]]|$)" { in=1 }
-              $0 ~ /^##[[:space:]]+/ && in==1 && $0 !~ "^##[[:space:]]+v?" version "([[:space:]]|$)" { exit }
-              in==1 { print }
+              BEGIN { in_section=0 }
+              $0 ~ "^##[[:space:]]+v?" version "([[:space:]]|$)" { in_section=1 }
+              $0 ~ /^##[[:space:]]+/ && in_section==1 && $0 !~ "^##[[:space:]]+v?" version "([[:space:]]|$)" { exit }
+              in_section==1 { print }
             ' CHANGELOG.md > release-notes.md
 
             if [ ! -s release-notes.md ]; then
               awk '
-                BEGIN { in=0 }
+                BEGIN { in_section=0 }
                 /^##[[:space:]]+/ {
-                  if (in==0) { in=1 } else { exit }
+                  if (in_section==0) { in_section=1 } else { exit }
                 }
-                in==1 { print }
+                in_section==1 { print }
               ' CHANGELOG.md > release-notes.md
             fi
 
