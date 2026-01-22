@@ -237,6 +237,10 @@ func (c *CageLauncher) Launch(opts LaunchOptions) error {
 		"WEBKIT_DISABLE_SANDBOX_THIS_IS_DANGEROUS=1",
 		"WEBKIT_FORCE_SANDBOX=0",
 
+		// Critical for Intel GPU compatibility - disables DRM modifiers
+		// which can cause EGL extension issues with virgl passthrough
+		"WLR_DRM_NO_MODIFIERS=1",
+
 		// Prevent GIO/libproxy from blocking on DBus during early init
 		"LIBPROXY_IGNORE_SETTINGS=1",
 		"GIO_USE_PROXY_RESOLVER=direct",
