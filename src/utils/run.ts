@@ -155,6 +155,12 @@ export class RunnerClass {
                 }
             }
             if (options.exitOnError) {
+                // If we have a UI sink, throw an error to let the UI handle it gracefully
+                if (Logger.hasSink()) {
+                    const exitError = new Error(errorMessage)
+                    exitError.name = "StruxExitError"
+                    throw exitError
+                }
                 process.exit(exitCode)
             }
         }
@@ -226,9 +232,16 @@ export class RunnerClass {
             spinner.stopWithSuccess("Creating dist folder...")
         } catch (error) {
             spinner.stop()
-            Logger.error("Failed to create dist/artifacts folder. Please create it manually.")
+            const errorMessage = "Failed to create dist/artifacts folder. Please create it manually."
+            Logger.error(errorMessage)
             if (error instanceof Error) {
                 Logger.error(error.message)
+            }
+            // If we have a UI sink, throw an error to let the UI handle it gracefully
+            if (Logger.hasSink()) {
+                const exitError = new Error(errorMessage)
+                exitError.name = "StruxExitError"
+                throw exitError
             }
             process.exit(1)
         }
@@ -317,6 +330,12 @@ export class RunnerClass {
                 const errorMessage = options.messageOnError ?? `Command failed with exit code ${exitCode}`
                 Logger.error(errorMessage)
                 if (options.exitOnError) {
+                    // If we have a UI sink, throw an error to let the UI handle it gracefully
+                    if (Logger.hasSink()) {
+                        const exitError = new Error(errorMessage)
+                        exitError.name = "StruxExitError"
+                        throw exitError
+                    }
                     process.exit(exitCode)
                 }
             }
@@ -391,6 +410,12 @@ export class RunnerClass {
                 }
             }
             if (options.exitOnError) {
+                // If we have a UI sink, throw an error to let the UI handle it gracefully
+                if (Logger.hasSink()) {
+                    const exitError = new Error(errorMessage)
+                    exitError.name = "StruxExitError"
+                    throw exitError
+                }
                 process.exit(exitCode)
             }
         }
