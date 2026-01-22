@@ -75,8 +75,59 @@ import systemdNetworkService from "../../assets/scripts-base/artifacts/systemd/s
 // @ts-ignore
 import systemdEthernetNetwork from "../../assets/scripts-base/artifacts/systemd/20-ethernet.network" with { type: "text" }
 
-// Cage sources (if bundled - we'll hash the build script as proxy)
-// WPE extension sources (we'll hash the build script as proxy)
+// ============================================================================
+// Cage Wayland Compositor Source Files
+// ============================================================================
+// @ts-ignore
+import cageMain from "../../assets/cage-base/cage.c" with { type: "text" }
+// @ts-ignore
+import cageOutput from "../../assets/cage-base/output.c" with { type: "text" }
+// @ts-ignore
+import cageOutputH from "../../assets/cage-base/output.h" with { type: "text" }
+// @ts-ignore
+import cageSeat from "../../assets/cage-base/seat.c" with { type: "text" }
+// @ts-ignore
+import cageSeatH from "../../assets/cage-base/seat.h" with { type: "text" }
+// @ts-ignore
+import cageView from "../../assets/cage-base/view.c" with { type: "text" }
+// @ts-ignore
+import cageViewH from "../../assets/cage-base/view.h" with { type: "text" }
+// @ts-ignore
+import cageXdgShell from "../../assets/cage-base/xdg_shell.c" with { type: "text" }
+// @ts-ignore
+import cageXdgShellH from "../../assets/cage-base/xdg_shell.h" with { type: "text" }
+// @ts-ignore
+import cageXwayland from "../../assets/cage-base/xwayland.c" with { type: "text" }
+// @ts-ignore
+import cageXwaylandH from "../../assets/cage-base/xwayland.h" with { type: "text" }
+// @ts-ignore
+import cageIdleInhibit from "../../assets/cage-base/idle_inhibit_v1.c" with { type: "text" }
+// @ts-ignore
+import cageIdleInhibitH from "../../assets/cage-base/idle_inhibit_v1.h" with { type: "text" }
+// @ts-ignore
+import cageSplash from "../../assets/cage-base/splash.c" with { type: "text" }
+// @ts-ignore
+import cageSplashH from "../../assets/cage-base/splash.h" with { type: "text" }
+// @ts-ignore
+import cageServerH from "../../assets/cage-base/server.h" with { type: "text" }
+// @ts-ignore
+import cageConfigH from "../../assets/cage-base/config.h.in" with { type: "text" }
+// @ts-ignore
+import cageMesonBuild from "../../assets/cage-base/meson.build" with { type: "text" }
+// @ts-ignore
+import cageMesonOptions from "../../assets/cage-base/meson_options.txt" with { type: "text" }
+// @ts-ignore
+import cageManPage from "../../assets/cage-base/cage.1.scd" with { type: "text" }
+// @ts-ignore
+import cageReadme from "../../assets/cage-base/README.md" with { type: "text" }
+
+// ============================================================================
+// WPE WebKit Extension Source Files
+// ============================================================================
+// @ts-ignore
+import wpeExtensionC from "../../assets/wpe-extension-base/extension.c" with { type: "text" }
+// @ts-ignore
+import wpeExtensionCMake from "../../assets/wpe-extension-base/CMakeLists.txt" with { type: "text" }
 
 // Dockerfile
 // @ts-ignore
@@ -127,11 +178,36 @@ export function computeInternalAssetHashes(): Record<string, string> {
             clientGoSum
         ),
 
-        // Cage sources - use build script as proxy (cage sources are in dist/cage/)
-        "@cage-sources": hashStrings(scriptBuildCage),
+        // Cage Wayland compositor sources
+        "@cage-sources": hashStrings(
+            cageMain,
+            cageOutput,
+            cageOutputH,
+            cageSeat,
+            cageSeatH,
+            cageView,
+            cageViewH,
+            cageXdgShell,
+            cageXdgShellH,
+            cageXwayland,
+            cageXwaylandH,
+            cageIdleInhibit,
+            cageIdleInhibitH,
+            cageSplash,
+            cageSplashH,
+            cageServerH,
+            cageConfigH,
+            cageMesonBuild,
+            cageMesonOptions,
+            cageManPage,
+            cageReadme
+        ),
 
-        // WPE extension sources - use build script as proxy
-        "@wpe-extension-sources": hashStrings(scriptBuildWPE),
+        // WPE WebKit extension sources
+        "@wpe-extension-sources": hashStrings(
+            wpeExtensionC,
+            wpeExtensionCMake
+        ),
 
         // Plymouth theme assets
         "@plymouth-assets": hashStrings(

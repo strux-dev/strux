@@ -69,6 +69,64 @@ import clientGoMod from "../../assets/client-base/go.mod" with { type: "text" }
 // @ts-ignore
 import clientGoSum from "../../assets/client-base/go.sum" with { type: "text" }
 
+// ============================================================================
+// Cage Wayland Compositor Source Files
+// Source: src/assets/cage-base-new/
+// ============================================================================
+// @ts-ignore
+import cageMain from "../../assets/cage-base-new/cage.c" with { type: "text" }
+// @ts-ignore
+import cageOutput from "../../assets/cage-base-new/output.c" with { type: "text" }
+// @ts-ignore
+import cageOutputH from "../../assets/cage-base-new/output.h" with { type: "text" }
+// @ts-ignore
+import cageSeat from "../../assets/cage-base-new/seat.c" with { type: "text" }
+// @ts-ignore
+import cageSeatH from "../../assets/cage-base-new/seat.h" with { type: "text" }
+// @ts-ignore
+import cageView from "../../assets/cage-base-new/view.c" with { type: "text" }
+// @ts-ignore
+import cageViewH from "../../assets/cage-base-new/view.h" with { type: "text" }
+// @ts-ignore
+import cageXdgShell from "../../assets/cage-base-new/xdg_shell.c" with { type: "text" }
+// @ts-ignore
+import cageXdgShellH from "../../assets/cage-base-new/xdg_shell.h" with { type: "text" }
+// @ts-ignore
+import cageXwayland from "../../assets/cage-base-new/xwayland.c" with { type: "text" }
+// @ts-ignore
+import cageXwaylandH from "../../assets/cage-base-new/xwayland.h" with { type: "text" }
+// @ts-ignore
+import cageIdleInhibit from "../../assets/cage-base-new/idle_inhibit_v1.c" with { type: "text" }
+// @ts-ignore
+import cageIdleInhibitH from "../../assets/cage-base-new/idle_inhibit_v1.h" with { type: "text" }
+// @ts-ignore
+import cageSplash from "../../assets/cage-base-new/splash.c" with { type: "text" }
+// @ts-ignore
+import cageSplashH from "../../assets/cage-base-new/splash.h" with { type: "text" }
+// @ts-ignore
+import cageServerH from "../../assets/cage-base-new/server.h" with { type: "text" }
+// @ts-ignore
+import cageConfigH from "../../assets/cage-base-new/config.h.in" with { type: "text" }
+// @ts-ignore
+import cageMesonBuild from "../../assets/cage-base-new/meson.build" with { type: "text" }
+// @ts-ignore
+import cageMesonOptions from "../../assets/cage-base-new/meson_options.txt" with { type: "text" }
+// @ts-ignore
+import cageLicense from "../../assets/cage-base-new/LICENSE" with { type: "text" }
+// @ts-ignore
+import cageManPage from "../../assets/cage-base-new/cage.1.scd" with { type: "text" }
+// @ts-ignore
+import cageReadme from "../../assets/cage-base-new/README.md" with { type: "text" }
+
+// ============================================================================
+// WPE WebKit Extension Source Files
+// Source: src/assets/wpe-extension-base/
+// ============================================================================
+// @ts-ignore
+import wpeExtensionC from "../../assets/wpe-extension-base/extension.c" with { type: "text" }
+// @ts-ignore
+import wpeExtensionCMake from "../../assets/wpe-extension-base/CMakeLists.txt" with { type: "text" }
+
 /**
  * Copies Plymouth theme files to dist/artifacts/plymouth/ if they don't exist.
  * Files are only written on first build - users can modify them afterwards.
@@ -190,6 +248,52 @@ export async function copyClientBaseFiles(clientSrcPath: string): Promise<void> 
     if (!fileExists(join(clientSrcPath, "exec.go"))) {
         Logger.log("Adding missing exec.go to client base...")
         await Bun.write(join(clientSrcPath, "exec.go"), clientGoExec)
+    }
+}
+
+/**
+ * Copies Cage Wayland compositor source files to dist/artifacts/cage/ if they don't exist.
+ * Files are only written on first build - users can modify them afterwards.
+ */
+export async function copyCageSourceFiles(cageSrcPath: string): Promise<void> {
+    if (!fileExists(join(cageSrcPath, "cage.c"))) {
+        Logger.log("Copying Cage compositor source files...")
+        // Main source files
+        await Bun.write(join(cageSrcPath, "cage.c"), cageMain)
+        await Bun.write(join(cageSrcPath, "output.c"), cageOutput)
+        await Bun.write(join(cageSrcPath, "output.h"), cageOutputH)
+        await Bun.write(join(cageSrcPath, "seat.c"), cageSeat)
+        await Bun.write(join(cageSrcPath, "seat.h"), cageSeatH)
+        await Bun.write(join(cageSrcPath, "view.c"), cageView)
+        await Bun.write(join(cageSrcPath, "view.h"), cageViewH)
+        await Bun.write(join(cageSrcPath, "xdg_shell.c"), cageXdgShell)
+        await Bun.write(join(cageSrcPath, "xdg_shell.h"), cageXdgShellH)
+        await Bun.write(join(cageSrcPath, "xwayland.c"), cageXwayland)
+        await Bun.write(join(cageSrcPath, "xwayland.h"), cageXwaylandH)
+        await Bun.write(join(cageSrcPath, "idle_inhibit_v1.c"), cageIdleInhibit)
+        await Bun.write(join(cageSrcPath, "idle_inhibit_v1.h"), cageIdleInhibitH)
+        await Bun.write(join(cageSrcPath, "splash.c"), cageSplash)
+        await Bun.write(join(cageSrcPath, "splash.h"), cageSplashH)
+        await Bun.write(join(cageSrcPath, "server.h"), cageServerH)
+        await Bun.write(join(cageSrcPath, "config.h.in"), cageConfigH)
+        // Build files
+        await Bun.write(join(cageSrcPath, "meson.build"), cageMesonBuild)
+        await Bun.write(join(cageSrcPath, "meson_options.txt"), cageMesonOptions)
+        await Bun.write(join(cageSrcPath, "LICENSE"), cageLicense)
+        await Bun.write(join(cageSrcPath, "cage.1.scd"), cageManPage)
+        await Bun.write(join(cageSrcPath, "README.md"), cageReadme)
+    }
+}
+
+/**
+ * Copies WPE WebKit extension source files to dist/artifacts/wpe-extension/ if they don't exist.
+ * Files are only written on first build - users can modify them afterwards.
+ */
+export async function copyWPEExtensionSourceFiles(wpeExtSrcPath: string): Promise<void> {
+    if (!fileExists(join(wpeExtSrcPath, "extension.c"))) {
+        Logger.log("Copying WPE extension source files...")
+        await Bun.write(join(wpeExtSrcPath, "extension.c"), wpeExtensionC)
+        await Bun.write(join(wpeExtSrcPath, "CMakeLists.txt"), wpeExtensionCMake)
     }
 }
 

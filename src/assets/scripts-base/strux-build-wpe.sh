@@ -12,7 +12,8 @@ progress() {
 
 # Project directory (mounted at /project in Docker container)
 PROJECT_DIR="/project"
-EXTENSION_SOURCE_DIR="$PROJECT_DIR/dist/extension"
+# WPE extension source is bundled with the CLI and copied to dist/artifacts/wpe-extension
+EXTENSION_SOURCE_DIR="$PROJECT_DIR/dist/artifacts/wpe-extension"
 # Use BSP_CACHE_DIR if provided, otherwise fallback to default
 CACHE_DIR="${BSP_CACHE_DIR:-$PROJECT_DIR/dist/cache}"
 EXTENSION_BUILD_DIR="$CACHE_DIR/extension_build"
@@ -126,27 +127,19 @@ if [ "$HOST_ARCH_NORMALIZED" != "$TARGET_ARCH_NORMALIZED" ]; then
 fi
 
 # ============================================================================
-# CHECK IF EXTENSION SOURCE EXISTS
+# VERIFY WPE EXTENSION SOURCE EXISTS
 # ============================================================================
-# Check if extension source directory already exists to avoid re-cloning
+# WPE extension source is bundled with the CLI and should have been copied to
+# dist/artifacts/wpe-extension before this script runs
 # ============================================================================
 
-if [ -d "$EXTENSION_SOURCE_DIR" ]; then
-    progress "Extension source already exists, skipping clone"
-else
-    progress "Cloning WPE extension source..."
-    
-    # Create dist directory if it doesn't exist
-    mkdir -p "$PROJECT_DIR/dist"
-    
-    # Clone the WPE extension repository
-    git clone https://github.com/strux-dev/strux-wpe-extension.git "$EXTENSION_SOURCE_DIR" || {
-        echo "Error: Failed to clone WPE extension repository"
-        exit 1
-    }
-    
-    progress "WPE Extension source cloned"
+if [ ! -d "$EXTENSION_SOURCE_DIR" ]; then
+    echo "Error: WPE extension source not found at $EXTENSION_SOURCE_DIR"
+    echo "The WPE extension source should be bundled with the Strux CLI and copied before building."
+    exit 1
 fi
+
+progress "WPE extension source found at $EXTENSION_SOURCE_DIR"
 
 # ============================================================================
 # BUILD WPE EXTENSION

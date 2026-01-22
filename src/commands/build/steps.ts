@@ -13,7 +13,7 @@ import { Settings } from "../../settings"
 import { Runner } from "../../utils/run"
 import { fileExists, directoryExists } from "../../utils/path"
 import { Logger } from "../../utils/log"
-import { copyClientBaseFiles, copyAllInitialArtifacts } from "./artifacts"
+import { copyClientBaseFiles, copyAllInitialArtifacts, copyCageSourceFiles, copyWPEExtensionSourceFiles } from "./artifacts"
 
 // Build Scripts
 // @ts-ignore
@@ -76,6 +76,16 @@ export async function compileApplication(): Promise<void> {
  */
 export async function compileCage(): Promise<void> {
     const bspName = Settings.bspName!
+
+    // Cage source directory in artifacts
+    const cageSrcPath = join(Settings.projectPath, "dist", "artifacts", "cage")
+
+    // Create directory if it doesn't exist
+    if (!directoryExists(cageSrcPath)) await mkdir(cageSrcPath, { recursive: true })
+
+    // Copy Cage source files if they don't exist (first build)
+    await copyCageSourceFiles(cageSrcPath)
+
     await Runner.runScriptInDocker(scriptBuildCage, {
         message: "Compiling Cage...",
         messageOnError: "Failed to compile Cage. Please check the build logs for more information.",
@@ -92,6 +102,16 @@ export async function compileCage(): Promise<void> {
  */
 export async function compileWPE(): Promise<void> {
     const bspName = Settings.bspName!
+
+    // WPE extension source directory in artifacts
+    const wpeExtSrcPath = join(Settings.projectPath, "dist", "artifacts", "wpe-extension")
+
+    // Create directory if it doesn't exist
+    if (!directoryExists(wpeExtSrcPath)) await mkdir(wpeExtSrcPath, { recursive: true })
+
+    // Copy WPE extension source files if they don't exist (first build)
+    await copyWPEExtensionSourceFiles(wpeExtSrcPath)
+
     await Runner.runScriptInDocker(scriptBuildWPE, {
         message: "Compiling WPE Extension...",
         messageOnError: "Failed to compile WPE Extension. Please check the build logs for more information.",

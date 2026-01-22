@@ -11,7 +11,8 @@ progress() {
 
 # Project directory (mounted at /project in Docker container)
 PROJECT_DIR="/project"
-CAGE_SOURCE_DIR="$PROJECT_DIR/dist/cage"
+# Cage source is bundled with the CLI and copied to dist/artifacts/cage
+CAGE_SOURCE_DIR="$PROJECT_DIR/dist/artifacts/cage"
 # Use BSP_CACHE_DIR if provided, otherwise fallback to default
 CACHE_DIR="${BSP_CACHE_DIR:-$PROJECT_DIR/dist/cache}"
 CAGE_BINARY="$CACHE_DIR/cage"
@@ -127,27 +128,19 @@ if [ "$HOST_ARCH_NORMALIZED" != "$TARGET_ARCH_NORMALIZED" ]; then
 fi
 
 # ============================================================================
-# CHECK IF CAGE SOURCE EXISTS
+# VERIFY CAGE SOURCE EXISTS
 # ============================================================================
-# Check if cage source directory already exists to avoid re-cloning
+# Cage source is bundled with the CLI and should have been copied to
+# dist/artifacts/cage before this script runs
 # ============================================================================
 
-if [ -d "$CAGE_SOURCE_DIR" ]; then
-    progress "Cage source already exists, skipping clone"
-else
-    progress "Cloning Cage source..."
-    
-    # Create dist directory if it doesn't exist
-    mkdir -p "$PROJECT_DIR/dist"
-    
-    # Clone the Cage repository
-    git clone https://github.com/strux-dev/cage.git "$CAGE_SOURCE_DIR" || {
-        echo "Error: Failed to clone Cage repository"
-        exit 1
-    }
-    
-    progress "Cage source cloned"
+if [ ! -d "$CAGE_SOURCE_DIR" ]; then
+    echo "Error: Cage source not found at $CAGE_SOURCE_DIR"
+    echo "The Cage source should be bundled with the Strux CLI and copied before building."
+    exit 1
 fi
+
+progress "Cage source found at $CAGE_SOURCE_DIR"
 
 # ============================================================================
 # BUILD CAGE COMPOSITOR

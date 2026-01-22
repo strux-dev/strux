@@ -167,8 +167,8 @@ DEB_FILES=$(echo -e "$DEB_FILES" | grep -v '^$' || true)
 # the root filesystem directory.
 # ============================================================================
 
-# We use Debian Forky as it contains the latest wlroots (0.19)
-DEBIAN_SUITE="forky"
+# We use Debian Trixie which contains wlroots 0.18
+DEBIAN_SUITE="trixie"
 
 # Temporary Directory for the Root Filesystem
 ROOTFS_DIR="/tmp/rootfs"
@@ -252,9 +252,9 @@ fi
 
 progress "Configuring apt sources..."
 
-# Configure apt sources for Forky
+# Configure apt sources for Trixie
 cat > "$ROOTFS_DIR/etc/apt/sources.list" << 'EOF'
-deb http://deb.debian.org/debian forky main contrib non-free non-free-firmware
+deb http://deb.debian.org/debian trixie main contrib non-free non-free-firmware
 EOF
 
 progress "Mounting root filesystem for chroot..."
@@ -322,7 +322,7 @@ fi
 # Install Wayland and browser components
 progress "Installing Wayland and WPE WebKit..."
 run_in_chroot "DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
-    libwlroots-0.19 \
+    libwlroots-0.18 \
     wayland-protocols \
     libwayland-client0 \
     libwayland-server0 \

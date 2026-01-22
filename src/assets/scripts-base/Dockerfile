@@ -1,5 +1,5 @@
-# Debian Forky (testing) - has wlroots 0.19
-FROM debian:testing-slim
+# Debian Trixie (testing) - has wlroots 0.18
+FROM debian:trixie-slim
 
 ENV DEBIAN_FRONTEND=noninteractive
 
@@ -55,7 +55,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libwpebackend-fdo-1.0-dev \
     libwpewebkit-2.0-dev \
     # wlroots and Wayland development
-    libwlroots-0.19-dev \
+    libwlroots-0.18-dev \
     libwayland-dev \
     wayland-protocols \
     # Additional dependencies for extension compilation
@@ -102,7 +102,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 # ARM64 cross-architecture development libraries
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    libwlroots-0.19-dev:arm64 \
+    libwlroots-0.18-dev:arm64 \
     libwayland-dev:arm64 \
     libglib2.0-dev:arm64 \
     libpixman-1-dev:arm64 \
@@ -121,7 +121,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 # x86_64 cross-architecture development libraries (if building on ARM64)
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    libwlroots-0.19-dev:amd64 \
+    libwlroots-0.18-dev:amd64 \
     libwayland-dev:amd64 \
     libglib2.0-dev:amd64 \
     libpixman-1-dev:amd64 \
@@ -143,7 +143,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 # between different architecture versions of libwpewebkit
 RUN apt-get update && apt-get install -y --no-install-recommends \
     -o Dpkg::Options::="--force-overwrite" \
-    libwlroots-0.19-dev:armhf \
+    libwlroots-0.18-dev:armhf \
     libwayland-dev:armhf \
     libglib2.0-dev:armhf \
     libpixman-1-dev:armhf \
