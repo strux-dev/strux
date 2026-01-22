@@ -123,21 +123,58 @@ export async function dev(): Promise<void> {
         }
     }
 
+    // Set up global error handlers to capture uncaught errors in the UI
+    const handleFatalError = (error: Error | unknown, type: string) => {
+        // Check if this is a controlled exit from Logger.errorWithExit
+        // These errors are already logged and have an exit scheduled
+        if (error instanceof Error && error.message.startsWith("[STRUX_EXIT]")) {
+            // Already handled by Logger.errorWithExit, don't double-log
+            return
+        }
+
+        const errorMessage = error instanceof Error
+            ? `${error.message}\n${error.stack ?? ""}`
+            : String(error)
+
+        Logger.error(`${type}: ${errorMessage}`)
+
+        // Give the UI time to render the error before exiting
+        if (devUI) {
+            devUI.appendLog("build", chalk.red(`\n[FATAL] ${type}: ${errorMessage}`))
+            devUI.appendLog("build", chalk.yellow("\nProcess will exit in 5 seconds. Press Q to exit now."))
+
+            setTimeout(() => {
+                cleanup(1)
+            }, 5000)
+        } else {
+            cleanup(1)
+        }
+    }
+
+    process.on("uncaughtException", (error) => {
+        handleFatalError(error, "Uncaught Exception")
+    })
+
+    process.on("unhandledRejection", (reason) => {
+        handleFatalError(reason, "Unhandled Promise Rejection")
+    })
+
     if (devUI) {
+        const ui = devUI // Capture reference for closure
         Logger.setSink(({ level, message, formatted }) => {
             if (level === "spinner") {
-                devUI.setSpinnerLine(formatted ?? message)
+                ui.setSpinnerLine(formatted ?? message)
                 return
             }
             if (level === "spinner-clear") {
-                devUI.setSpinnerLine("")
+                ui.setSpinnerLine("")
                 return
             }
 
             const output = formatted ?? message
             const lines = output.split("\n")
             for (const line of lines) {
-                devUI.appendLog("build", line)
+                ui.appendLog("build", line)
             }
         })
     }
