@@ -470,7 +470,7 @@ main(int argc, char *argv[])
 		goto end;
 	}
 
-	struct wlr_presentation *presentation = wlr_presentation_create(server.wl_display, server.backend, 2);
+	struct wlr_presentation *presentation = wlr_presentation_create(server.wl_display, server.backend);
 	if (!presentation) {
 		wlr_log(WLR_ERROR, "Unable to create the presentation interface");
 		ret = 1;

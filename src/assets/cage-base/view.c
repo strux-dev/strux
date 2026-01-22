@@ -19,7 +19,6 @@
 #include "output.h"
 #include "seat.h"
 #include "server.h"
-#include "splash.h"
 #include "view.h"
 #if CAGE_HAS_XWAYLAND
 #include "xwayland.h"
@@ -146,11 +145,6 @@ view_map(struct cg_view *view, struct wlr_surface *surface)
 
 	wl_list_insert(&view->server->views, &view->link);
 	seat_set_focus(view->server->seat, view);
-
-	/* Keep splash on top if visible */
-	if (view->server->splash && view->server->splash->visible && view->server->splash->tree) {
-		wlr_scene_node_raise_to_top(&view->server->splash->tree->node);
-	}
 }
 
 void

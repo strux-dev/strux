@@ -71,52 +71,52 @@ import clientGoSum from "../../assets/client-base/go.sum" with { type: "text" }
 
 // ============================================================================
 // Cage Wayland Compositor Source Files
-// Source: src/assets/cage-base-new/
+// Source: src/assets/cage-base/
 // ============================================================================
 // @ts-ignore
-import cageMain from "../../assets/cage-base-new/cage.c" with { type: "text" }
+import cageMain from "../../assets/cage-base/cage.c" with { type: "text" }
 // @ts-ignore
-import cageOutput from "../../assets/cage-base-new/output.c" with { type: "text" }
+import cageOutput from "../../assets/cage-base/output.c" with { type: "text" }
 // @ts-ignore
-import cageOutputH from "../../assets/cage-base-new/output.h" with { type: "text" }
+import cageOutputH from "../../assets/cage-base/output.h" with { type: "text" }
 // @ts-ignore
-import cageSeat from "../../assets/cage-base-new/seat.c" with { type: "text" }
+import cageSeat from "../../assets/cage-base/seat.c" with { type: "text" }
 // @ts-ignore
-import cageSeatH from "../../assets/cage-base-new/seat.h" with { type: "text" }
+import cageSeatH from "../../assets/cage-base/seat.h" with { type: "text" }
 // @ts-ignore
-import cageView from "../../assets/cage-base-new/view.c" with { type: "text" }
+import cageView from "../../assets/cage-base/view.c" with { type: "text" }
 // @ts-ignore
-import cageViewH from "../../assets/cage-base-new/view.h" with { type: "text" }
+import cageViewH from "../../assets/cage-base/view.h" with { type: "text" }
 // @ts-ignore
-import cageXdgShell from "../../assets/cage-base-new/xdg_shell.c" with { type: "text" }
+import cageXdgShell from "../../assets/cage-base/xdg_shell.c" with { type: "text" }
 // @ts-ignore
-import cageXdgShellH from "../../assets/cage-base-new/xdg_shell.h" with { type: "text" }
+import cageXdgShellH from "../../assets/cage-base/xdg_shell.h" with { type: "text" }
 // @ts-ignore
-import cageXwayland from "../../assets/cage-base-new/xwayland.c" with { type: "text" }
+import cageXwayland from "../../assets/cage-base/xwayland.c" with { type: "text" }
 // @ts-ignore
-import cageXwaylandH from "../../assets/cage-base-new/xwayland.h" with { type: "text" }
+import cageXwaylandH from "../../assets/cage-base/xwayland.h" with { type: "text" }
 // @ts-ignore
-import cageIdleInhibit from "../../assets/cage-base-new/idle_inhibit_v1.c" with { type: "text" }
+import cageIdleInhibit from "../../assets/cage-base/idle_inhibit_v1.c" with { type: "text" }
 // @ts-ignore
-import cageIdleInhibitH from "../../assets/cage-base-new/idle_inhibit_v1.h" with { type: "text" }
+import cageIdleInhibitH from "../../assets/cage-base/idle_inhibit_v1.h" with { type: "text" }
 // @ts-ignore
-import cageSplash from "../../assets/cage-base-new/splash.c" with { type: "text" }
+import cageSplash from "../../assets/cage-base/splash.c" with { type: "text" }
 // @ts-ignore
-import cageSplashH from "../../assets/cage-base-new/splash.h" with { type: "text" }
+import cageSplashH from "../../assets/cage-base/splash.h" with { type: "text" }
 // @ts-ignore
-import cageServerH from "../../assets/cage-base-new/server.h" with { type: "text" }
+import cageServerH from "../../assets/cage-base/server.h" with { type: "text" }
 // @ts-ignore
-import cageConfigH from "../../assets/cage-base-new/config.h.in" with { type: "text" }
+import cageConfigH from "../../assets/cage-base/config.h.in" with { type: "text" }
 // @ts-ignore
-import cageMesonBuild from "../../assets/cage-base-new/meson.build" with { type: "text" }
+import cageMesonBuild from "../../assets/cage-base/meson.build" with { type: "text" }
 // @ts-ignore
-import cageMesonOptions from "../../assets/cage-base-new/meson_options.txt" with { type: "text" }
+import cageMesonOptions from "../../assets/cage-base/meson_options.txt" with { type: "text" }
 // @ts-ignore
-import cageLicense from "../../assets/cage-base-new/LICENSE" with { type: "text" }
+import cageLicense from "../../assets/cage-base/LICENSE" with { type: "text" }
 // @ts-ignore
-import cageManPage from "../../assets/cage-base-new/cage.1.scd" with { type: "text" }
+import cageManPage from "../../assets/cage-base/cage.1.scd" with { type: "text" }
 // @ts-ignore
-import cageReadme from "../../assets/cage-base-new/README.md" with { type: "text" }
+import cageReadme from "../../assets/cage-base/README.md" with { type: "text" }
 
 // ============================================================================
 // WPE WebKit Extension Source Files

@@ -1,8 +1,0 @@
-#ifndef CG_CONFIG_H
-#define CG_CONFIG_H
-
-#mesondefine CAGE_HAS_XWAYLAND
-
-#mesondefine CAGE_VERSION
-
-#endif
