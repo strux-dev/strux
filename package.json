@@ -1,6 +1,6 @@
 {
   "name": "strux-os-bun",
-  "version": "0.0.10",
+  "version": "0.0.15",
   "module": "index.ts",
   "type": "module",
   "private": true,
