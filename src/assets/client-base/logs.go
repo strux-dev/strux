@@ -179,6 +179,40 @@ func (l *LogStreamer) StartCageLogStream(streamID string, callback LogCallback) 
 	return nil
 }
 
+// StartEarlyLogStream starts streaming best-effort early boot logs
+// Prefers journalctl -b, falls back to dmesg -w
+func (l *LogStreamer) StartEarlyLogStream(streamID string, callback LogCallback) error {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+
+	if _, exists := l.streams[streamID]; exists {
+		return fmt.Errorf("stream %s already exists", streamID)
+	}
+
+	l.logger.Info("Starting early log stream: %s", streamID)
+
+	cmd := exec.Command("journalctl", "-b", "-f", "--no-pager", "-o", "short-precise")
+	stream := &LogStream{
+		ID:         streamID,
+		StreamType: LogStreamTypeCommand,
+		cmd:        cmd,
+		callback:   callback,
+		done:       make(chan struct{}),
+	}
+
+	if err := l.startCommandStream(stream); err != nil {
+		l.logger.Warn("journalctl not available, falling back to dmesg: %v", err)
+		cmd = exec.Command("dmesg", "-w")
+		stream.cmd = cmd
+		if err := l.startCommandStream(stream); err != nil {
+			return err
+		}
+	}
+
+	l.streams[streamID] = stream
+	return nil
+}
+
 // startCommandStream starts a command and reads its output
 func (l *LogStreamer) startCommandStream(stream *LogStream) error {
 	// Get stdout pipe
@@ -430,4 +464,3 @@ func (l *LogStreamer) GetActiveStreams() []string {
 	}
 	return ids
 }
-

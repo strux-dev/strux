@@ -45,6 +45,8 @@ import clientGoSocket from "../../assets/client-base/socket.go" with { type: "te
 // @ts-ignore
 import clientGoHelpers from "../../assets/client-base/helpers.go" with { type: "text" }
 // @ts-ignore
+import clientGoExec from "../../assets/client-base/exec.go" with { type: "text" }
+// @ts-ignore
 import clientGoMod from "../../assets/client-base/go.mod" with { type: "text" }
 // @ts-ignore
 import clientGoSum from "../../assets/client-base/go.sum" with { type: "text" }
@@ -120,6 +122,7 @@ export function computeInternalAssetHashes(): Record<string, string> {
             clientGoLogs,
             clientGoSocket,
             clientGoHelpers,
+            clientGoExec,
             clientGoMod,
             clientGoSum
         ),
@@ -178,5 +181,4 @@ export function getDockerfileHash(): string {
 export function clearHashCache(): void {
     cachedHashes = null
 }
-
 

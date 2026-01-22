@@ -26,6 +26,8 @@ interface RunOptions {
     returnProcess?: boolean
     // Suppress QEMU console output (useful when logs are streamed via dev server)
     quiet?: boolean
+    // Override stdio to capture QEMU output
+    stdio?: ["inherit" | "ignore" | "pipe", "inherit" | "ignore" | "pipe", "inherit" | "ignore" | "pipe"]
 }
 
 
@@ -209,7 +211,7 @@ export async function run(options: RunOptions = {}) {
 
 
     const proc = Bun.spawn([qemuBin!, ...args], {
-        stdio: options.quiet ? ["inherit", "ignore", "ignore"] : ["inherit", "inherit", "inherit"],
+        stdio: options.stdio ?? (options.quiet ? ["inherit", "ignore", "ignore"] : ["inherit", "inherit", "inherit"]),
         env: process.env
     })
 
@@ -425,5 +427,4 @@ async function verifyArtifactsExist(devMode = false): Promise<void> {
     }
 
 }
-
 

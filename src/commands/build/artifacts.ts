@@ -61,6 +61,8 @@ import clientGoSocket from "../../assets/client-base/socket.go" with { type: "te
 // @ts-ignore
 import clientGoHelpers from "../../assets/client-base/helpers.go" with { type: "text" }
 // @ts-ignore
+import clientGoExec from "../../assets/client-base/exec.go" with { type: "text" }
+// @ts-ignore
 import clientGoWebsocket from "../../assets/client-base/websocket.go" with {type: "text"}
 // @ts-ignore
 import clientGoMod from "../../assets/client-base/go.mod" with { type: "text" }
@@ -178,9 +180,16 @@ export async function copyClientBaseFiles(clientSrcPath: string): Promise<void> 
         await Bun.write(join(clientSrcPath, "logs.go"), clientGoLogs)
         await Bun.write(join(clientSrcPath, "socket.go"), clientGoSocket)
         await Bun.write(join(clientSrcPath, "helpers.go"), clientGoHelpers)
+        await Bun.write(join(clientSrcPath, "exec.go"), clientGoExec)
         await Bun.write(join(clientSrcPath, "websocket.go"), clientGoWebsocket)
         await Bun.write(join(clientSrcPath, "go.mod"), clientGoMod)
         await Bun.write(join(clientSrcPath, "go.sum"), clientGoSum)
+        return
+    }
+
+    if (!fileExists(join(clientSrcPath, "exec.go"))) {
+        Logger.log("Adding missing exec.go to client base...")
+        await Bun.write(join(clientSrcPath, "exec.go"), clientGoExec)
     }
 }
 
@@ -194,4 +203,3 @@ export async function copyAllInitialArtifacts(): Promise<void> {
     await copyPlymouthArtifacts()
     await copyBootSplashLogo()
 }
-

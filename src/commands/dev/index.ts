@@ -18,6 +18,8 @@ import { build as buildCommand } from "../build"
 import { MainYAMLValidator } from "../../types/main-yaml"
 import { createDevServer, stopDevServer, type DevServer } from "./server"
 import { run as runQEMU } from "../run"
+import { DevUI } from "./ui"
+import chalk from "chalk"
 
 
 // Dev server instance
@@ -28,6 +30,11 @@ let qemuProcess: Awaited<ReturnType<typeof runQEMU>> | null = null
 
 // Vite dev server process reference
 let viteProcess: ReturnType<typeof Bun.spawn> | null = null
+
+// Dev UI reference
+let devUI: DevUI | null = null
+
+const consoleSessionId = "main"
 
 
 export async function dev(): Promise<void> {
@@ -72,6 +79,75 @@ export async function dev(): Promise<void> {
     // Get the server port from fallback hosts (default to 8000)
     const serverPort = Settings.main?.dev?.server?.fallback_hosts?.[0]?.port ?? 8000
 
+    const cleanup = (exitCode = 0) => {
+        Logger.setSink(null)
+        devUI?.destroy()
+
+        Logger.log("Shutting down...")
+
+        stopDevServer()
+
+        if (viteProcess) {
+            viteProcess.kill()
+        }
+
+        if (qemuProcess && "kill" in qemuProcess) {
+            qemuProcess.kill()
+        }
+
+        setTimeout(() => {
+            process.exit(exitCode)
+        }, 100)
+    }
+
+    // Initialize the TUI
+    if (process.env.STRUX_DEV_NO_UI === "1") {
+        Logger.warning("STRUX_DEV_NO_UI=1 set, using console output")
+        devUI = null
+    } else {
+        try {
+            devUI = new DevUI({
+                onExit: () => cleanup(),
+                onConsoleInput: (data) => {
+                    if (!devServer?.isClientConnected()) {
+                        Logger.warning("Console not connected yet")
+                        return
+                    }
+                    devServer.sendExecInput(consoleSessionId, data)
+                },
+                initialStatus: "Starting dev session..."
+            })
+        } catch (error) {
+            Logger.error(`Failed to start TUI, falling back to console logs: ${(error as Error).message}`)
+            devUI = null
+        }
+    }
+
+    if (devUI) {
+        Logger.setSink(({ level, message, formatted }) => {
+            if (level === "spinner") {
+                devUI.setSpinnerLine(formatted ?? message)
+                return
+            }
+            if (level === "spinner-clear") {
+                devUI.setSpinnerLine("")
+                return
+            }
+
+            const output = formatted ?? message
+            const lines = output.split("\n")
+            for (const line of lines) {
+                devUI.appendLog("build", line)
+            }
+        })
+    }
+
+    if (Settings.isRemoteOnly && devUI) {
+        devUI.setQemuTabLabel("Early Logs")
+    }
+
+    const useUi = devUI !== null
+
     // Run the initial build
     Logger.title("Building Development Image")
 
@@ -96,14 +172,16 @@ export async function dev(): Promise<void> {
         "npm install && npm run dev -- --host 0.0.0.0 --port 5173"
     ]
 
-    // Silence Vite output by default, show with --vite flag
-    const viteStdio: ["inherit", "inherit", "inherit"] | ["pipe", "pipe", "pipe"] = Settings.devViteDebug
-        ? ["inherit", "inherit", "inherit"]
-        : ["pipe", "pipe", "pipe"]
-
     viteProcess = Bun.spawn(viteDockerArgs, {
-        stdio: viteStdio
+        stdio: useUi ? ["pipe", "pipe", "pipe"] : ["inherit", "inherit", "inherit"]
     })
+
+    if (useUi && viteProcess.stdout) {
+        streamLines(viteProcess.stdout as any, (line) => devUI?.appendLog("vite", line))
+    }
+    if (useUi && viteProcess.stderr) {
+        streamLines(viteProcess.stderr as any, (line) => devUI?.appendLog("vite", line))
+    }
 
     Logger.success("Vite dev server started on http://localhost:5173 (running in Docker)")
 
@@ -126,11 +204,22 @@ export async function dev(): Promise<void> {
 
         Logger.title("Starting QEMU Emulator")
 
-        const proc = await runQEMU({ devMode: true, returnProcess: true, quiet: true })
+        const proc = await runQEMU({
+            devMode: true,
+            returnProcess: true,
+            stdio: useUi ? ["pipe", "pipe", "pipe"] : ["inherit", "inherit", "inherit"]
+        })
 
         if (proc) {
 
             qemuProcess = proc
+
+            if (useUi && proc.stdout) {
+                streamLines(proc.stdout, (line) => devUI?.appendLog("qemu", line))
+            }
+            if (useUi && proc.stderr) {
+                streamLines(proc.stderr, (line) => devUI?.appendLog("qemu", line))
+            }
 
             // Display WebKit Inspector URL if explicitly enabled in strux.yaml
             const inspectorEnabled = Settings.main?.dev?.inspector?.enabled ?? false
@@ -146,8 +235,9 @@ export async function dev(): Promise<void> {
             // Handle QEMU exit
             proc.exited.then((code) => {
 
-                // Reset terminal to prevent blank lines
-                process.stdout.write("\x1b[0m\x1b[?25h")
+                if (devUI) {
+                    devUI.appendLog("qemu", `QEMU exited with code ${code}`)
+                }
 
                 if (code !== 0) {
                     Logger.error(`QEMU exited with code ${code}`)
@@ -164,8 +254,7 @@ export async function dev(): Promise<void> {
 
                 // Give processes a moment to clean up, then exit
                 setTimeout(() => {
-                    process.stdout.write("\n")
-                    process.exit(code ?? 0)
+                    cleanup(code ?? 0)
                 }, 100)
 
             })
@@ -177,12 +266,61 @@ export async function dev(): Promise<void> {
     // Start the dev server
     Logger.title("Starting Development Server")
 
+    const uiHandlers = devUI ? (() => {
+        const ui = devUI
+        return {
+            onLogLine: (payload: { streamId: string; line: string; service?: string; timestamp: string }) => {
+                if (payload.streamId === "app") {
+                    ui.appendLog("app", formatLogLine("app", payload.line, payload.service, payload.timestamp))
+                } else if (payload.streamId === "cage") {
+                    ui.appendLog("cage", formatLogLine("cage", payload.line, payload.service, payload.timestamp))
+                } else if (payload.streamId === "system" || payload.streamId === "journalctl") {
+                    ui.appendLog("system", formatLogLine(payload.streamId, payload.line, payload.service, payload.timestamp))
+                } else if (payload.streamId === "early") {
+                    ui.appendLog("qemu", formatLogLine(payload.streamId, payload.line, payload.service, payload.timestamp))
+                } else {
+                    ui.appendLog("system", formatLogLine(payload.streamId, payload.line, payload.service, payload.timestamp))
+                }
+            },
+            onLogError: (payload: { streamId: string; error: string }) => {
+                ui.appendLog("system", `Log error (${payload.streamId}): ${payload.error}`)
+            },
+            onBinaryAck: (payload: { status: string; message: string }) => {
+                if (payload.status === "skipped") {
+                    ui.appendLog("build", `Binary skipped: ${payload.message}`)
+                } else if (payload.status === "updated") {
+                    ui.appendLog("build", `Binary updated on device: ${payload.message}`)
+                } else {
+                    ui.appendLog("build", `Binary update failed: ${payload.message}`)
+                }
+            },
+            onExecOutput: (payload: { data: string }) => {
+                ui.appendConsoleChunk(payload.data)
+                ui.setConsoleSessionActive(true)
+            },
+            onExecExit: (payload: { code: number }) => {
+                ui.appendConsoleChunk(`\r\n[session exited: ${payload.code}]\r\n`)
+                ui.setConsoleSessionActive(false)
+                ui.setConsoleInputMode(false)
+            },
+            onExecError: (payload: { error: string }) => {
+                ui.appendConsoleChunk(`\r\n[error] ${payload.error}\r\n`)
+                ui.setConsoleSessionActive(false)
+                ui.setConsoleInputMode(false)
+            }
+        }
+    })() : {}
+
     devServer = createDevServer({
         port: serverPort,
         clientKey,
         onClientConnected: () => {
 
             Logger.success("Device connected to dev server")
+            devUI?.setStatus(`Connected | ${Settings.isRemoteOnly ? "remote" : "qemu"} | port ${serverPort}`)
+
+            devServer?.startExecSession(consoleSessionId, "/bin/sh")
+            devUI?.setConsoleSessionActive(true)
 
             // Start streaming app logs (user's Go app output) unless disabled
             if (Settings.devAppDebug) {
@@ -197,10 +335,17 @@ export async function dev(): Promise<void> {
                 devServer?.startLogStream("system", "journalctl")
             }
 
+            if (Settings.isRemoteOnly) {
+                devServer?.startLogStream("early", "early")
+            }
+
         },
         onClientDisconnected: () => {
 
             Logger.warning("Device disconnected from dev server")
+            devUI?.setStatus(`Disconnected | ${Settings.isRemoteOnly ? "remote" : "qemu"} | port ${serverPort}`)
+            devUI?.setConsoleSessionActive(false)
+            devUI?.setConsoleInputMode(false)
 
         },
         onBinaryRequested: async () => {
@@ -210,7 +355,8 @@ export async function dev(): Promise<void> {
 
             await sendCurrentBinary()
 
-        }
+        },
+        ...uiHandlers
     })
 
     Logger.info(`Client key: ${clientKey}`)
@@ -218,38 +364,57 @@ export async function dev(): Promise<void> {
     // Start the file watcher
     await runFileWatcher()
 
-    // Handle graceful shutdown
-    const cleanup = () => {
-
-        // Reset terminal to prevent blank lines from child processes
-        process.stdout.write("\x1b[0m\x1b[?25h") // Reset styles and show cursor
-
-        Logger.log("Shutting down...")
-
-        stopDevServer()
-
-        if (viteProcess) {
-            viteProcess.kill()
-        }
-
-        if (qemuProcess && "kill" in qemuProcess) {
-            qemuProcess.kill()
-        }
-
-        // Give processes a moment to clean up, then exit
-        setTimeout(() => {
-            process.stdout.write("\n")
-            process.exit(0)
-        }, 100)
-
-    }
-
     process.on("SIGINT", cleanup)
     process.on("SIGTERM", cleanup)
 
     // Keep the process running
     await new Promise((_resolve) => { /* Never resolves - keeps process alive */ })
 
+}
+
+
+function streamLines(stream: ReadableStream<Uint8Array>, onLine: (line: string) => void): void {
+    const reader = stream.getReader()
+    const decoder = new TextDecoder()
+    let buffer = ""
+
+    const readLoop = async () => {
+        while (true) {
+            const result = await reader.read()
+            if (result.done) break
+
+            buffer += decoder.decode(result.value, { stream: true })
+            const parts = buffer.split("\n")
+            buffer = parts.pop() ?? ""
+
+            for (const line of parts) {
+                if (line.trim().length > 0) {
+                    onLine(line)
+                }
+            }
+        }
+
+        if (buffer.trim().length > 0) {
+            onLine(buffer)
+        }
+    }
+
+    void readLoop()
+}
+
+function formatLogLine(streamId: string, line: string, service?: string, timestamp?: string): string {
+    const ts = timestamp ? `${chalk.dim(timestamp)} ` : ""
+    const svc = service ? `${chalk.cyan(`[${service}]`)} ` : ""
+
+    if (streamId === "app") {
+        return `${ts}${chalk.green.bold("[APP]")} ${svc}${chalk.green(line)}`
+    }
+
+    if (streamId === "cage") {
+        return `${ts}${chalk.blue.bold("[CAGE]")} ${svc}${chalk.blue(line)}`
+    }
+
+    return `${ts}${chalk.magenta(`[${streamId}]`)} ${svc}${line}`
 }
 
 

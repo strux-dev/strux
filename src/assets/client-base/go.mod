@@ -3,6 +3,7 @@ module client-base
 go 1.24.2
 
 require (
+	github.com/creack/pty v1.1.24
 	github.com/gorilla/websocket v1.5.3
 	github.com/grandcat/zeroconf v1.0.0
 )

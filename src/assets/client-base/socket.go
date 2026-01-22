@@ -11,6 +11,11 @@
 // - Server emits: "stop-logs" with { streamId }
 // - Client emits: "log-line" with { streamId, line, service?, timestamp }
 // - Client emits: "log-stream-error" with { streamId, error }
+// - Server emits: "exec-start" with { sessionId, shell? }
+// - Server emits: "exec-input" with { sessionId, data }
+// - Client emits: "exec-output" with { sessionId, stream, data }
+// - Client emits: "exec-exit" with { sessionId, code }
+// - Client emits: "exec-error" with { sessionId, error }
 //
 
 package main
@@ -30,7 +35,7 @@ type BinaryPayload struct {
 // StartLogsPayload represents the payload for starting log streams
 type StartLogsPayload struct {
 	StreamID string `json:"streamId"`
-	Type     string `json:"type"`    // "journalctl", "service", "app", or "cage"
+	Type     string `json:"type"`    // "journalctl", "service", "app", "cage", or "early"
 	Service  string `json:"service"` // service name if type is "service"
 }
 
@@ -53,6 +58,37 @@ type LogErrorPayload struct {
 	Error    string `json:"error"`
 }
 
+// ExecStartPayload starts an interactive shell session
+type ExecStartPayload struct {
+	SessionID string `json:"sessionId"`
+	Shell     string `json:"shell,omitempty"`
+}
+
+// ExecInputPayload sends input to an interactive shell session
+type ExecInputPayload struct {
+	SessionID string `json:"sessionId"`
+	Data      string `json:"data"`
+}
+
+// ExecOutputPayload sends console output back to the server
+type ExecOutputPayload struct {
+	SessionID string `json:"sessionId"`
+	Stream    string `json:"stream"`
+	Data      string `json:"data"`
+}
+
+// ExecExitPayload notifies the server of session exit
+type ExecExitPayload struct {
+	SessionID string `json:"sessionId"`
+	Code      int    `json:"code"`
+}
+
+// ExecErrorPayload reports an exec error
+type ExecErrorPayload struct {
+	SessionID string `json:"sessionId"`
+	Error     string `json:"error"`
+}
+
 // BinaryAckPayload represents the acknowledgment of a binary update
 type BinaryAckPayload struct {
 	Status           string `json:"status"`           // "skipped", "updated", "error"
@@ -70,15 +106,30 @@ type SocketClient struct {
 	connected  bool
 	host       Host
 	logStreams *LogStreamer
+	exec       *ExecManager
 }
 
 // NewSocketClient creates a new WebSocket client
 func NewSocketClient(clientKey string) *SocketClient {
-	return &SocketClient{
+	client := &SocketClient{
 		clientKey:  clientKey,
 		logger:     NewLogger("SocketClient"),
 		logStreams: NewLogStreamer(),
 	}
+
+	client.exec = NewExecManager(
+		func(sessionID, stream, data string) {
+			client.SendExecOutput(sessionID, stream, data)
+		},
+		func(sessionID string, code int) {
+			client.SendExecExit(sessionID, code)
+		},
+		func(sessionID string, err error) {
+			client.SendExecError(sessionID, err.Error())
+		},
+	)
+
+	return client
 }
 
 // Connect establishes a WebSocket connection to the specified host
@@ -171,6 +222,26 @@ func (s *SocketClient) setupEventHandlers(ws *WSClient) {
 		}
 		s.handleStopLogs(stopPayload)
 	})
+
+	// Handle exec-start event
+	ws.On("exec-start", func(payload json.RawMessage) {
+		var execPayload ExecStartPayload
+		if err := json.Unmarshal(payload, &execPayload); err != nil {
+			s.logger.Error("Failed to parse exec-start payload: %v", err)
+			return
+		}
+		s.handleExecStart(execPayload)
+	})
+
+	// Handle exec-input event
+	ws.On("exec-input", func(payload json.RawMessage) {
+		var inputPayload ExecInputPayload
+		if err := json.Unmarshal(payload, &inputPayload); err != nil {
+			s.logger.Error("Failed to parse exec-input payload: %v", err)
+			return
+		}
+		s.handleExecInput(inputPayload)
+	})
 }
 
 // Disconnect closes the WebSocket connection
@@ -181,6 +252,7 @@ func (s *SocketClient) Disconnect() {
 	if s.ws != nil {
 		s.logger.Info("Disconnecting...")
 		s.logStreams.StopAll()
+		s.exec.StopAll()
 		s.ws.Disconnect()
 		s.ws = nil
 		s.connected = false
@@ -268,6 +340,55 @@ func (s *SocketClient) SendBinaryAck(status, message, currentChecksum, receivedC
 	}
 }
 
+// SendExecOutput streams console output to the server
+func (s *SocketClient) SendExecOutput(sessionID, stream, data string) {
+	if s.ws == nil {
+		return
+	}
+
+	payload := ExecOutputPayload{
+		SessionID: sessionID,
+		Stream:    stream,
+		Data:      data,
+	}
+
+	if err := s.ws.Emit("exec-output", payload); err != nil {
+		s.logger.Error("Failed to send exec output: %v", err)
+	}
+}
+
+// SendExecExit sends session exit status to the server
+func (s *SocketClient) SendExecExit(sessionID string, code int) {
+	if s.ws == nil {
+		return
+	}
+
+	payload := ExecExitPayload{
+		SessionID: sessionID,
+		Code:      code,
+	}
+
+	if err := s.ws.Emit("exec-exit", payload); err != nil {
+		s.logger.Error("Failed to send exec exit: %v", err)
+	}
+}
+
+// SendExecError sends exec error to the server
+func (s *SocketClient) SendExecError(sessionID string, errMsg string) {
+	if s.ws == nil {
+		return
+	}
+
+	payload := ExecErrorPayload{
+		SessionID: sessionID,
+		Error:     errMsg,
+	}
+
+	if err := s.ws.Emit("exec-error", payload); err != nil {
+		s.logger.Error("Failed to send exec error: %v", err)
+	}
+}
+
 // handleBinaryUpdate handles a binary update from the server
 func (s *SocketClient) handleBinaryUpdate(data string) {
 	s.logger.Info("Received binary update")
@@ -318,6 +439,8 @@ func (s *SocketClient) handleStartLogs(payload StartLogsPayload) {
 		err = s.logStreams.StartCageLogStream(payload.StreamID, callback)
 	case "journalctl":
 		err = s.logStreams.StartJournalctlStream(payload.StreamID, callback)
+	case "early":
+		err = s.logStreams.StartEarlyLogStream(payload.StreamID, callback)
 	default:
 		err = s.logStreams.StartJournalctlStream(payload.StreamID, callback)
 	}
@@ -332,4 +455,20 @@ func (s *SocketClient) handleStartLogs(payload StartLogsPayload) {
 func (s *SocketClient) handleStopLogs(payload StopLogsPayload) {
 	s.logger.Info("Stopping log stream: %s", payload.StreamID)
 	s.logStreams.Stop(payload.StreamID)
+}
+
+func (s *SocketClient) handleExecStart(payload ExecStartPayload) {
+	s.logger.Info("Starting exec session: %s", payload.SessionID)
+
+	if err := s.exec.Start(payload.SessionID, payload.Shell); err != nil {
+		s.logger.Error("Failed to start exec session: %v", err)
+		s.SendExecError(payload.SessionID, err.Error())
+	}
+}
+
+func (s *SocketClient) handleExecInput(payload ExecInputPayload) {
+	if err := s.exec.SendInput(payload.SessionID, payload.Data); err != nil {
+		s.logger.Error("Failed to send exec input: %v", err)
+		s.SendExecError(payload.SessionID, err.Error())
+	}
 }

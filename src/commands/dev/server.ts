@@ -16,11 +16,16 @@
  *  - "request-binary": Request the current binary (no payload)
  *  - "log-line": Send a log line { streamId, line, service?, timestamp }
  *  - "log-stream-error": Send an error { streamId, error }
+ *  - "exec-output": Send console output { sessionId, stream, data }
+ *  - "exec-exit": Send console exit { sessionId, code }
+ *  - "exec-error": Send console error { sessionId, error }
  *
  *  Server -> Client Events:
  *  - "new-binary": Send binary update { data: string } (base64 encoded)
  *  - "start-logs": Start log streaming { streamId, type, service? }
  *  - "stop-logs": Stop log streaming { streamId }
+ *  - "exec-start": Start interactive shell { sessionId, shell? }
+ *  - "exec-input": Send input { sessionId, data }
  *
  */
 
@@ -50,7 +55,7 @@ interface BinaryPayload {
 
 interface StartLogsPayload {
     streamId: string
-    type: "journalctl" | "service" | "app" | "cage"
+    type: "journalctl" | "service" | "app" | "cage" | "early"
     service?: string
 }
 
@@ -74,6 +79,32 @@ interface LogErrorPayload {
 }
 
 
+interface ExecStartPayload {
+    sessionId: string
+    shell?: string
+}
+
+interface ExecInputPayload {
+    sessionId: string
+    data: string
+}
+
+interface ExecOutputPayload {
+    sessionId: string
+    stream: "stdout" | "stderr"
+    data: string
+}
+
+interface ExecExitPayload {
+    sessionId: string
+    code: number
+}
+
+interface ExecErrorPayload {
+    sessionId: string
+    error: string
+}
+
 interface BinaryAckPayload {
     status: "skipped" | "updated" | "error"
     message: string
@@ -88,6 +119,12 @@ interface DevServerOptions {
     onClientConnected?: () => void
     onClientDisconnected?: () => void
     onBinaryRequested?: () => void
+    onLogLine?: (payload: LogLinePayload) => void
+    onLogError?: (payload: LogErrorPayload) => void
+    onBinaryAck?: (payload: BinaryAckPayload) => void
+    onExecOutput?: (payload: ExecOutputPayload) => void
+    onExecExit?: (payload: ExecExitPayload) => void
+    onExecError?: (payload: ExecErrorPayload) => void
 }
 
 
@@ -419,6 +456,15 @@ export class DevServer {
             case "binary-ack":
                 this.handleBinaryAck(payload as BinaryAckPayload)
                 break
+            case "exec-output":
+                this.handleExecOutput(payload as ExecOutputPayload)
+                break
+            case "exec-exit":
+                this.handleExecExit(payload as ExecExitPayload)
+                break
+            case "exec-error":
+                this.handleExecError(payload as ExecErrorPayload)
+                break
 
             default:
                 Logger.warning(`Unknown event type: ${eventType}`)
@@ -454,6 +500,10 @@ export class DevServer {
 
 
     private handleLogLine(payload: LogLinePayload): void {
+        if (this.options.onLogLine) {
+            this.options.onLogLine(payload)
+            return
+        }
 
         // Format and display the log line
         const timestamp = payload.timestamp ? chalk.dim(payload.timestamp) : ""
@@ -484,6 +534,10 @@ export class DevServer {
 
 
     private handleLogError(payload: LogErrorPayload): void {
+        if (this.options.onLogError) {
+            this.options.onLogError(payload)
+            return
+        }
 
         Logger.error(`Log stream error (${payload.streamId}): ${payload.error}`)
 
@@ -491,6 +545,10 @@ export class DevServer {
 
 
     private handleBinaryAck(payload: BinaryAckPayload): void {
+        if (this.options.onBinaryAck) {
+            this.options.onBinaryAck(payload)
+            return
+        }
 
         switch (payload.status) {
 
@@ -512,6 +570,33 @@ export class DevServer {
 
         }
 
+    }
+
+    private handleExecOutput(payload: ExecOutputPayload): void {
+        if (this.options.onExecOutput) {
+            this.options.onExecOutput(payload)
+            return
+        }
+
+        Logger.log(`Console output (${payload.sessionId}): ${payload.data}`)
+    }
+
+    private handleExecExit(payload: ExecExitPayload): void {
+        if (this.options.onExecExit) {
+            this.options.onExecExit(payload)
+            return
+        }
+
+        Logger.info(`Console exited (${payload.sessionId}) with code ${payload.code}`)
+    }
+
+    private handleExecError(payload: ExecErrorPayload): void {
+        if (this.options.onExecError) {
+            this.options.onExecError(payload)
+            return
+        }
+
+        Logger.error(`Console error (${payload.sessionId}): ${payload.error}`)
     }
 
 
@@ -588,14 +673,15 @@ export class DevServer {
     /**
      * Start a log stream on the client.
      * Use "journalctl" type for all system logs, "service" type with a service name,
-     * "app" type for the user's Go app output, or "cage" type for Cage/Cog compositor logs.
+     * "app" type for the user's Go app output, "cage" type for Cage/Cog compositor logs,
+     * or "early" type for best-effort early boot logs.
      *
      * @param streamId - Unique identifier for this log stream
      * @param type - Type of log stream: "journalctl", "service", "app", or "cage"
      * @param service - Service name (required if type is "service")
      * @returns true if the event was sent successfully
      */
-    public startLogStream(streamId: string, type: "journalctl" | "service" | "app" | "cage", service?: string): boolean {
+    public startLogStream(streamId: string, type: "journalctl" | "service" | "app" | "cage" | "early", service?: string): boolean {
 
         if (type === "service" && !service) {
 
@@ -679,6 +765,35 @@ export class DevServer {
 
     }
 
+
+    /**
+     * Get the server port.
+     */
+    /**
+     * Start an interactive exec session on the client.
+     */
+    public startExecSession(sessionId: string, shell?: string): boolean {
+        const payload: ExecStartPayload = {
+            sessionId,
+            shell
+        }
+
+        Logger.log(`Starting exec session: ${sessionId}`)
+
+        return this.emit("exec-start", payload)
+    }
+
+    /**
+     * Send input to an interactive exec session.
+     */
+    public sendExecInput(sessionId: string, data: string): boolean {
+        const payload: ExecInputPayload = {
+            sessionId,
+            data
+        }
+
+        return this.emit("exec-input", payload)
+    }
 
     /**
      * Get the server port.
