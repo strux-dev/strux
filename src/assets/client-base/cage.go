@@ -221,7 +221,7 @@ func (c *CageLauncher) Launch(opts LaunchOptions) error {
 		 echo "[strux] starting wlr-randr";
 		 timeout 2s wlr-randr --output Virtual-1 --mode "%s" 2>/dev/null || echo "[strux] wlr-randr skipped/failed";
 		 echo "[strux] starting cog";
-		 exec cog --web-extensions-dir=/usr/lib/wpe-web-extensions --enable-developer-extras=1 "%s"`,
+		 exec cog --web-extensions-dir=/usr/lib/wpe-web-extensions --platform=wl --enable-developer-extras=1 "%s"`,
 		opts.Resolution, opts.CogURL,
 	)
 
@@ -236,9 +236,6 @@ func (c *CageLauncher) Launch(opts LaunchOptions) error {
 		"SEATD_SOCK=/run/seatd.sock",
 		"WEBKIT_DISABLE_SANDBOX_THIS_IS_DANGEROUS=1",
 		"WEBKIT_FORCE_SANDBOX=0",
-
-		// Critical for Intel GPU compatibility - disables DRM modifiers
-		// which can cause EGL extension issues with virgl passthrough
 		"WLR_DRM_NO_MODIFIERS=1",
 
 		// Prevent GIO/libproxy from blocking on DBus during early init
