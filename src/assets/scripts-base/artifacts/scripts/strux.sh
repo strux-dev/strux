@@ -21,9 +21,15 @@ log "XDG_RUNTIME_DIR=$XDG_RUNTIME_DIR"
 unset DISPLAY
 
 # Load GPU/framebuffer modules
+# Load all common GPU kernel modules to ensure hardware is detected
+# - drm: Direct Rendering Manager (core)
+# - i915: Intel integrated graphics
+# - amdgpu: AMD graphics (modern)
+# - radeon: AMD graphics (legacy)
+# - virtio-gpu: Virtual GPU for QEMU
 log "Loading GPU modules..."
 udevadm settle
-modprobe -a drm virtio-gpu 2>/dev/null || true
+modprobe -a drm i915 amdgpu radeon virtio-gpu 2>/dev/null || true
 sleep 1
 
 # Wait for framebuffer device (needed for splash)
