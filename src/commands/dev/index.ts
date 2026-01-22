@@ -123,12 +123,13 @@ export async function dev(): Promise<void> {
         }
     }
 
-    // Set up global error handlers to capture uncaught errors in the UI
+    // Helper to handle fatal errors - logs to UI and waits before exiting
     const handleFatalError = (error: Error | unknown, type: string) => {
         // Check if this is a controlled exit from Logger.errorWithExit
-        // These errors are already logged and have an exit scheduled
-        if (error instanceof Error && error.message.startsWith("[STRUX_EXIT]")) {
-            // Already handled by Logger.errorWithExit, don't double-log
+        // These errors are already logged, just need to wait for user to see them
+        if (error instanceof Error && error.name === "StruxExitError") {
+            // Already logged by Logger.errorWithExit, UI is showing the error
+            // Don't exit automatically - let user press Q to exit
             return
         }
 
@@ -141,16 +142,14 @@ export async function dev(): Promise<void> {
         // Give the UI time to render the error before exiting
         if (devUI) {
             devUI.appendLog("build", chalk.red(`\n[FATAL] ${type}: ${errorMessage}`))
-            devUI.appendLog("build", chalk.yellow("\nProcess will exit in 5 seconds. Press Q to exit now."))
-
-            setTimeout(() => {
-                cleanup(1)
-            }, 5000)
+            devUI.appendLog("build", chalk.yellow("\nPress Q to exit."))
+            // Don't auto-exit, let user see the error and press Q
         } else {
             cleanup(1)
         }
     }
 
+    // Set up global error handlers to capture uncaught errors in the UI
     process.on("uncaughtException", (error) => {
         handleFatalError(error, "Uncaught Exception")
     })
@@ -188,7 +187,20 @@ export async function dev(): Promise<void> {
     // Run the initial build
     Logger.title("Building Development Image")
 
-    await buildCommand()
+    try {
+        await buildCommand()
+    } catch (error) {
+        // Handle StruxExitError specially - it's already been logged
+        if (error instanceof Error && error.name === "StruxExitError") {
+            // Error already logged to UI, wait for user to press Q
+            if (useUi) {
+                await new Promise((_resolve) => { /* Never resolves - UI handles exit via Q key */ })
+            }
+            return
+        }
+        // Re-throw other errors to be caught by global handler
+        throw error
+    }
 
     // Start the Vite dev server for the frontend inside Docker
     // This ensures consistent Linux-native npm packages and proper caching
@@ -485,9 +497,20 @@ async function runFileWatcher(): Promise<void> {
 
         Logger.log("Changes detected, rebuilding application...")
 
-        // Check if the file is a strux file
-        if (filePath.endsWith(".yaml")) await triggerFullRebuild()
-        else await rebuildApplication()
+        try {
+            // Check if the file is a strux file
+            if (filePath.endsWith(".yaml")) await triggerFullRebuild()
+            else await rebuildApplication()
+        } catch (error) {
+            // Handle StruxExitError specially - it's already been logged to the UI
+            if (error instanceof Error && error.name === "StruxExitError") {
+                // Error already logged to UI, don't propagate - let user see it and continue
+                Logger.warning("Build failed. Fix the error and save to retry.")
+                return
+            }
+            // Re-throw other errors to be caught by global handler
+            throw error
+        }
 
     })
 

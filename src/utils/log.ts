@@ -81,18 +81,18 @@ export class Logger {
 
     public static errorWithExit(message: string): never {
         Logger.error(message)
-        // If we have a sink (UI mode), give time for the error to render
+        // If we have a sink (UI mode), throw a special error that can be caught
+        // to give the UI time to render the error
         if (Logger.sink) {
             Logger.sink({
                 level: "error",
-                message: "Process will exit in 5 seconds...",
-                formatted: Logger.format(ICONS.error, chalk.red, chalk.yellow("Process will exit in 5 seconds. Press Q to exit now."))
+                message: "Press Q to exit.",
+                formatted: Logger.format(ICONS.error, chalk.red, chalk.yellow("Press Q to exit."))
             })
-            // Schedule the exit to allow UI to render, then throw to prevent return
-            setTimeout(() => process.exit(1), 5000)
-            // Throw a special error to prevent function from returning
-            // This error will be caught by the global handler or terminate the current call stack
-            throw new Error(`[STRUX_EXIT] ${message}`)
+            // Throw a special error that dev command will catch and handle
+            const exitError = new Error(message)
+            exitError.name = "StruxExitError"
+            throw exitError
         }
         process.exit(1)
     }
